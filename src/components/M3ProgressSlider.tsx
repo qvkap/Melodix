@@ -45,6 +45,14 @@ export const M3ProgressSlider: React.FC<M3ProgressSliderProps> = ({
               if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(t)
             }
           }
+        } else if (!howlRef.current) {
+          // No howl loaded (track switching) — reset slider to 0 instantly
+          if (lastPct !== 0) {
+            lastPct = 0
+            if (fillRef.current) fillRef.current.style.width = '0%'
+            if (thumbRef.current) thumbRef.current.style.left = '0%'
+            if (timeLabelRef.current) timeLabelRef.current.textContent = '0:00'
+          }
         }
       }
       rafRef.current = requestAnimationFrame(tick)

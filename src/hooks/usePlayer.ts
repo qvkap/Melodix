@@ -261,6 +261,7 @@ export function usePlayer() {
       title: track.title,
       artist: track.artist,
       duration: track.duration,
+      trackId: track.id,
     }).then(res => {
       if (res.success) {
         const rawLines: LrcLine[] = res.syncedLyrics ? parseLrc(res.syncedLyrics) : []

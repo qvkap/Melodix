@@ -65,7 +65,7 @@ declare global {
       searchAlbums?: (query: string) => Promise<{ success: boolean; results?: Album[]; error?: string }>
       getAlbumTracks?: (albumIdOrUrl: string) => Promise<{ success: boolean; tracks?: Track[]; error?: string }>
       getStreamUrl: (videoId: string, fallbackQuery?: string) => Promise<{ success: boolean; url?: string; error?: string }>
-      fetchLyrics: (opts: { title: string; artist: string; duration?: number }) => Promise<{
+      fetchLyrics: (opts: { title: string; artist: string; duration?: number; trackId?: string }) => Promise<{
         success: boolean
         syncedLyrics?: string
         plainLyrics?: string

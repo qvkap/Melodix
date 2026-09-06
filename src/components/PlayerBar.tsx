@@ -329,6 +329,10 @@ const TimeLabel: React.FC<{ howlRef: React.RefObject<Howl | null>; side: 'curren
             spanRef.current.textContent = newText
           }
         }
+      } else if (!h && spanRef.current && lastText !== '0:00') {
+        // Track unloaded — reset time display immediately
+        lastText = '0:00'
+        spanRef.current.textContent = '0:00'
       }
       raf = requestAnimationFrame(tick)
     }

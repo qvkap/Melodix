@@ -270,9 +270,36 @@ const searchCache = new Map<string, { data: any; ts: number }>()
 const streamCache = new Map<string, { url: string; ts: number }>()
 const lyricsCache = new Map<string, { data: any; ts: number }>()
 
-const SEARCH_TTL = 10 * 60 * 1000 // 10 minutes
-const STREAM_TTL = 4 * 60 * 60 * 1000 // 4 hours
-const LYRICS_TTL = 24 * 60 * 60 * 1000 // 24 hours
+const SEARCH_TTL = 10 * 60 * 1000      // 10 minutes
+const STREAM_TTL = 4 * 60 * 60 * 1000  // 4 hours (in-memory)
+const LYRICS_TTL = 24 * 60 * 60 * 1000 // 24 hours (in-memory)
+
+// Persistent unified track cache (stream URL + lyrics stored together on disk)
+const TRACK_CACHE_TTL = 6 * 60 * 60 * 1000 // 6 hours
+
+interface TrackCacheEntry {
+  streamUrl?: string
+  syncedLyrics?: string
+  plainLyrics?: string
+  cachedAt: number
+}
+
+function getTrackCache(trackId: string): TrackCacheEntry | null {
+  try {
+    const key = `track_cache:${trackId}`
+    const entry = store.get(key) as TrackCacheEntry | undefined
+    if (entry && Date.now() - entry.cachedAt < TRACK_CACHE_TTL) return entry
+  } catch {}
+  return null
+}
+
+function setTrackCache(trackId: string, patch: Partial<Omit<TrackCacheEntry, 'cachedAt'>>) {
+  try {
+    const key = `track_cache:${trackId}`
+    const existing = (store.get(key) as TrackCacheEntry | undefined) || { cachedAt: 0 }
+    store.set(key, { ...existing, ...patch, cachedAt: Date.now() })
+  } catch {}
+}
 
 // Search Music: First try YouTube, with instant fallback to SoundCloud if DPI/SSL blocks YouTube
 ipcMain.handle('search-music', async (_event, query: string) => {
@@ -622,10 +649,17 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
     return { success: true, url }
   }
 
-  // Check stream cache first for instant 0ms start
+  // 1. Check in-memory cache first (fastest, sub-millisecond)
   const cachedStream = streamCache.get(trackIdOrUrl)
   if (cachedStream && Date.now() - cachedStream.ts < STREAM_TTL) {
     return { success: true, url: cachedStream.url }
+  }
+
+  // 2. Check persistent disk cache (survives restarts)
+  const diskCached = getTrackCache(trackIdOrUrl)
+  if (diskCached?.streamUrl) {
+    streamCache.set(trackIdOrUrl, { url: diskCached.streamUrl, ts: Date.now() })
+    return { success: true, url: diskCached.streamUrl }
   }
 
   const ytdlpPath = getYtdlpPath()
@@ -651,6 +685,7 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
     const url = stdout.trim().split('\n')[0]
     if (url && url.startsWith('http')) {
       streamCache.set(trackIdOrUrl, { url, ts: Date.now() })
+      setTrackCache(trackIdOrUrl, { streamUrl: url })
       return { success: true, url }
     }
   } catch (err: any) {
@@ -671,6 +706,7 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
       const url = stdout.trim().split('\n')[0]
       if (url && url.startsWith('http')) {
         streamCache.set(trackIdOrUrl, { url, ts: Date.now() })
+        setTrackCache(trackIdOrUrl, { streamUrl: url })
         return { success: true, url }
       }
     } catch (err2: any) {
@@ -693,11 +729,27 @@ function cleanQuery(str: string): string {
     .trim()
 }
 
-ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration }: { title: string; artist: string; duration?: number }) => {
+ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration, trackId }: { title: string; artist: string; duration?: number; trackId?: string }) => {
   const cacheKey = `${(artist || '').toLowerCase().trim()}:${(title || '').toLowerCase().trim()}`
+
+  // 1. Check in-memory lyrics cache
   const cached = lyricsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < LYRICS_TTL) {
     return cached.data
+  }
+
+  // 2. Check persistent disk cache keyed by trackId (survives restarts)
+  if (trackId) {
+    const diskCached = getTrackCache(trackId)
+    if (diskCached && (diskCached.syncedLyrics || diskCached.plainLyrics)) {
+      const resp = {
+        success: true,
+        syncedLyrics: diskCached.syncedLyrics,
+        plainLyrics: diskCached.plainLyrics,
+      }
+      lyricsCache.set(cacheKey, { data: resp, ts: Date.now() })
+      return resp
+    }
   }
 
   try {
@@ -717,7 +769,19 @@ ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration }: { tit
     candidateQueries.push(cleanT)
     candidateQueries = Array.from(new Set(candidateQueries.map(q => q.trim()).filter(Boolean)))
 
-    // 1. Exact get
+    // Helper: cache result in-memory + on disk and return
+    const cacheAndReturn = (resp: { success: boolean; syncedLyrics?: string; plainLyrics?: string }) => {
+      lyricsCache.set(cacheKey, { data: resp, ts: Date.now() })
+      if (trackId && resp.success) {
+        setTrackCache(trackId, {
+          syncedLyrics: resp.syncedLyrics,
+          plainLyrics: resp.plainLyrics,
+        })
+      }
+      return resp
+    }
+
+    // 3. Exact get from lrclib
     if (cleanA && cleanT) {
       try {
         const params = new URLSearchParams({ track_name: cleanT, artist_name: cleanA })
@@ -728,19 +792,17 @@ ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration }: { tit
         if (directRes.ok) {
           const directData: any = await directRes.json()
           if (directData.syncedLyrics || directData.plainLyrics) {
-            const resp = {
+            return cacheAndReturn({
               success: true,
               syncedLyrics: directData.syncedLyrics || undefined,
               plainLyrics: directData.plainLyrics || undefined,
-            }
-            lyricsCache.set(cacheKey, { data: resp, ts: Date.now() })
-            return resp
+            })
           }
         }
       } catch {}
     }
 
-    // 2. Search queries
+    // 4. Search queries fallback
     for (const q of candidateQueries) {
       try {
         const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, {
@@ -752,13 +814,11 @@ ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration }: { tit
             const bestWithSynced = items.find(it => it.syncedLyrics && it.syncedLyrics.length > 0)
             const chosen = bestWithSynced || items[0]
             if (chosen.syncedLyrics || chosen.plainLyrics) {
-              const resp = {
+              return cacheAndReturn({
                 success: true,
                 syncedLyrics: chosen.syncedLyrics || undefined,
                 plainLyrics: chosen.plainLyrics || undefined,
-              }
-              lyricsCache.set(cacheKey, { data: resp, ts: Date.now() })
-              return resp
+              })
             }
           }
         }
