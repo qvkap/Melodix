@@ -3,7 +3,7 @@ import {
   Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Typography, Divider, IconButton, Tooltip
 } from '@mui/material'
 import {
-  Home, Search, QueueMusic, Favorite, LibraryMusic, Settings, ChevronLeft
+  Home, Search, QueueMusic, Favorite, LibraryMusic, Settings, ChevronLeft, FolderSpecial
 } from '@mui/icons-material'
 import { Track } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
@@ -11,7 +11,7 @@ import { cleanTitle } from '../utils'
 
 export const SIDEBAR_WIDTH = 230
 
-export type AppView = 'home' | 'search' | 'queue' | 'favorites' | 'playlists' | 'settings' | 'artist'
+export type AppView = 'home' | 'search' | 'local' | 'queue' | 'favorites' | 'playlists' | 'settings' | 'artist'
 
 interface SidebarProps {
   currentView: AppView
@@ -28,12 +28,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t, settings } = useSettings()
 
   const navItems: { id: AppView; icon: React.ReactNode; label: string }[] = [
-    { id: 'home',      icon: <Home />,         label: t.home      },
-    { id: 'search',    icon: <Search />,       label: t.search    },
-    { id: 'queue',     icon: <QueueMusic />,   label: t.queue     },
-    { id: 'favorites', icon: <Favorite />,     label: t.favorites },
-    { id: 'playlists', icon: <LibraryMusic />, label: t.playlists },
-    { id: 'settings',  icon: <Settings />,     label: t.settings  },
+    { id: 'home',      icon: <Home />,          label: t.home        },
+    { id: 'search',    icon: <Search />,        label: t.search      },
+    { id: 'local',     icon: <FolderSpecial />, label: t.localTracks },
+    { id: 'queue',     icon: <QueueMusic />,    label: t.queue       },
+    { id: 'favorites', icon: <Favorite />,      label: t.favorites   },
+    { id: 'playlists', icon: <LibraryMusic />,  label: t.playlists   },
+    { id: 'settings',  icon: <Settings />,      label: t.settings    },
   ]
 
   return (

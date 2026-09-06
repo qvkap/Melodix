@@ -6,6 +6,8 @@ export interface Track {
   thumbnail: string
   url: string
   isExplicit?: boolean
+  isLocal?: boolean
+  localPath?: string
 }
 
 export interface Playlist {
@@ -77,6 +79,11 @@ declare global {
       onUpdateMessage?: (callback: (data: { status: string; message?: string; version?: string; percent?: number }) => void) => () => void
       getSystemAccentColor?: () => Promise<{ success: boolean; color?: string | null }>
       onSystemAccentColorChanged?: (callback: (color: string) => void) => () => void
+      openLocalFiles?: () => Promise<{ success: boolean; tracks?: Track[]; error?: string }>
+      openLocalFolder?: () => Promise<{ success: boolean; folderPath?: string; tracks?: Track[]; error?: string }>
+      scanLocalFolder?: (folderPath: string) => Promise<{ success: boolean; folderPath?: string; tracks?: Track[]; error?: string }>
+      parseLocalFile?: (filePath: string) => Promise<{ success: boolean; track?: Track; error?: string }>
+      showItemInFolder?: (filePath: string) => void
     }
   }
 }

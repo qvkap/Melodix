@@ -70,7 +70,9 @@ export function cleanTitle(title: string, exclusionWords: string[]): string {
 
 /** Get thumbnail URL, falling back to YouTube format */
 export function getThumbnail(track: { thumbnail?: string; id: string }): string {
-  if (track.thumbnail && track.thumbnail.startsWith('http')) return track.thumbnail
+  if (track.thumbnail && (track.thumbnail.startsWith('http') || track.thumbnail.startsWith('data:') || track.thumbnail.startsWith('blob:'))) {
+    return track.thumbnail
+  }
   return `https://img.youtube.com/vi/${track.id}/mqdefault.jpg`
 }
 

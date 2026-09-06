@@ -163,8 +163,10 @@ export function usePlayer() {
               ? queue[Math.floor(Math.random() * queue.length)]
               : queue[(currentIdx + 1) % queue.length]
             if (nextTrack && nextTrack.id !== currentTrack.id) {
-              const nextTarget = nextTrack.url && nextTrack.url.startsWith('http') ? nextTrack.url : nextTrack.id
-              window.melodix?.getStreamUrl?.(nextTarget, `${nextTrack.artist} ${nextTrack.title}`)
+              if (!nextTrack.isLocal && !nextTrack.id.startsWith('local:') && !nextTrack.url?.startsWith('local-audio://')) {
+                const nextTarget = nextTrack.url && nextTrack.url.startsWith('http') ? nextTrack.url : nextTrack.id
+                window.melodix?.getStreamUrl?.(nextTarget, `${nextTrack.artist} ${nextTrack.title}`)
+              }
             }
           }
         }
@@ -236,14 +238,22 @@ export function usePlayer() {
       })
     }
 
-    // Stream URL (handles both direct web URLs and YouTube IDs, with fallback query)
-    const streamTarget = track.url && track.url.startsWith('http') ? track.url : track.id
-    const fallbackQuery = `${fixedTrack.artist} ${fixedTrack.title}`
-    const streamRes = await window.melodix.getStreamUrl(streamTarget, fallbackQuery)
-    if (!streamRes.success || !streamRes.url) {
-      console.error('Stream error:', streamRes.error)
-      setLyrics(l => ({ ...l, loading: false }))
-      return
+    // Stream URL (handles local files, direct web URLs, and YouTube IDs)
+    let streamUrl = ''
+    if (track.isLocal || track.url?.startsWith('local-audio://') || track.id.startsWith('local:')) {
+      streamUrl = track.url?.startsWith('local-audio://')
+        ? track.url
+        : `local-audio://${track.localPath || track.id.replace(/^local:/, '')}`
+    } else {
+      const streamTarget = track.url && track.url.startsWith('http') ? track.url : track.id
+      const fallbackQuery = `${fixedTrack.artist} ${fixedTrack.title}`
+      const streamRes = await window.melodix.getStreamUrl(streamTarget, fallbackQuery)
+      if (!streamRes.success || !streamRes.url) {
+        console.error('Stream error:', streamRes.error)
+        setLyrics(l => ({ ...l, loading: false }))
+        return
+      }
+      streamUrl = streamRes.url
     }
 
     // Fetch Lyrics in parallel
@@ -261,7 +271,7 @@ export function usePlayer() {
       }
     })
 
-    const isM3u8 = streamRes.url.includes('.m3u8')
+    const isM3u8 = streamUrl.includes('.m3u8')
     const opts = {
       volume: stateRef.current.volume,
       mute: stateRef.current.isMuted,
@@ -288,12 +298,12 @@ export function usePlayer() {
     }
 
     if (isM3u8) {
-      const adapter = new HlsAudioAdapter(streamRes.url, opts)
+      const adapter = new HlsAudioAdapter(streamUrl, opts)
       howlRef.current = adapter
       adapter.play()
     } else {
       const howl = new Howl({
-        src: [streamRes.url],
+        src: [streamUrl],
         html5: true,
         ...opts,
       })

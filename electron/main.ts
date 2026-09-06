@@ -1,12 +1,27 @@
-import { app, BrowserWindow, ipcMain, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, systemPreferences, protocol, net, dialog } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { execFile, spawn, ChildProcess } from 'child_process'
 import { promisify } from 'util'
 import Store from 'electron-store'
 import os from 'os'
-
 import fs from 'fs'
+import { pathToFileURL } from 'url'
+
+// Register local-audio privileged scheme before app ready
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'local-audio',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+      corsEnabled: true,
+    },
+  },
+])
 
 // Native Wayland flags (Linux only)
 if (process.platform === 'linux') {
@@ -123,7 +138,21 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  protocol.handle('local-audio', (request) => {
+    try {
+      let decoded = decodeURIComponent(request.url.replace(/^local-audio:\/\//, ''))
+      if (process.platform === 'win32' && decoded.startsWith('/')) {
+        decoded = decoded.slice(1)
+      }
+      return net.fetch(pathToFileURL(decoded).toString())
+    } catch (e) {
+      console.error('local-audio protocol error:', e)
+      return new Response('File not found', { status: 404 })
+    }
+  })
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -578,8 +607,21 @@ ipcMain.handle('get-album-tracks', async (_event, albumIdOrUrl: string) => {
   }
 })
 
-// Get audio stream URL via yt-dlp (works for both YouTube and SoundCloud URLs)
+// Get audio stream URL via yt-dlp (works for both YouTube and SoundCloud URLs, or local files)
 ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQuery?: string) => {
+  if (!trackIdOrUrl) return { success: false, error: 'No track ID or URL' }
+
+  // Direct return for local audio files
+  if (trackIdOrUrl.startsWith('local-audio://') || trackIdOrUrl.startsWith('local:') || (trackIdOrUrl.startsWith('/') && fs.existsSync(trackIdOrUrl))) {
+    let url = trackIdOrUrl
+    if (trackIdOrUrl.startsWith('local:')) {
+      url = `local-audio://${trackIdOrUrl.replace(/^local:/, '')}`
+    } else if (!trackIdOrUrl.startsWith('local-audio://')) {
+      url = `local-audio://${trackIdOrUrl}`
+    }
+    return { success: true, url }
+  }
+
   // Check stream cache first for instant 0ms start
   const cachedStream = streamCache.get(trackIdOrUrl)
   if (cachedStream && Date.now() - cachedStream.ts < STREAM_TTL) {
@@ -743,3 +785,126 @@ ipcMain.handle('get-username', () => {
     return process.env.USER || process.env.USERNAME || 'User'
   }
 })
+
+// Local Music Player Helpers & Handlers
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.wav', '.m4a', '.ogg', '.aac', '.opus', '.wma'])
+
+async function parseLocalAudioFile(filePath: string) {
+  const fileName = filePath.split(/[/\\]/).pop() || 'Unknown Track'
+  const baseName = fileName.replace(/\.[^/.]+$/, '')
+  try {
+    const mm = await import('music-metadata')
+    const metadata = await mm.parseFile(filePath, { skipCovers: false })
+    let thumbnail = ''
+    if (metadata.common.picture && metadata.common.picture.length > 0) {
+      const pic = metadata.common.picture[0]
+      thumbnail = `data:${pic.format};base64,${Buffer.from(pic.data).toString('base64')}`
+    }
+
+    const title = metadata.common.title || baseName
+    const artist = metadata.common.artist || metadata.common.albumartist || 'Локальный трек'
+    const duration = Math.round(metadata.format.duration || 0)
+
+    return {
+      id: `local:${filePath}`,
+      title,
+      artist,
+      duration,
+      thumbnail,
+      url: `local-audio://${filePath}`,
+      isLocal: true,
+      localPath: filePath,
+    }
+  } catch {
+    return {
+      id: `local:${filePath}`,
+      title: baseName,
+      artist: 'Локальный трек',
+      duration: 0,
+      thumbnail: '',
+      url: `local-audio://${filePath}`,
+      isLocal: true,
+      localPath: filePath,
+    }
+  }
+}
+
+async function scanDirectoryForAudio(dirPath: string, maxDepth = 4, currentDepth = 0): Promise<string[]> {
+  if (currentDepth > maxDepth) return []
+  const results: string[] = []
+  try {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith('.')) {
+          const sub = await scanDirectoryForAudio(fullPath, maxDepth, currentDepth + 1)
+          results.push(...sub)
+        }
+      } else if (entry.isFile()) {
+        const ext = entry.name.toLowerCase().slice(entry.name.lastIndexOf('.'))
+        if (AUDIO_EXTENSIONS.has(ext)) {
+          results.push(fullPath)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Scan dir error:', err)
+  }
+  return results
+}
+
+ipcMain.handle('open-local-files', async () => {
+  if (!mainWindow) return { success: false, error: 'No main window' }
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Выберите аудиофайлы',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Аудиофайлы', extensions: ['mp3', 'flac', 'wav', 'm4a', 'ogg', 'aac', 'opus', 'wma'] }
+    ]
+  })
+  if (res.canceled || !res.filePaths.length) {
+    return { success: true, tracks: [] }
+  }
+  const tracks = await Promise.all(res.filePaths.map(parseLocalAudioFile))
+  return { success: true, tracks }
+})
+
+ipcMain.handle('open-local-folder', async () => {
+  if (!mainWindow) return { success: false, error: 'No main window' }
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Выберите папку с музыкой',
+    properties: ['openDirectory']
+  })
+  if (res.canceled || !res.filePaths.length) {
+    return { success: true, tracks: [] }
+  }
+  const folderPath = res.filePaths[0]
+  const audioFiles = await scanDirectoryForAudio(folderPath)
+  const tracks = await Promise.all(audioFiles.map(parseLocalAudioFile))
+  return { success: true, folderPath, tracks }
+})
+
+ipcMain.handle('scan-local-folder', async (_e, folderPath: string) => {
+  if (!folderPath || !fs.existsSync(folderPath)) {
+    return { success: false, error: 'Папка не существует' }
+  }
+  const audioFiles = await scanDirectoryForAudio(folderPath)
+  const tracks = await Promise.all(audioFiles.map(parseLocalAudioFile))
+  return { success: true, folderPath, tracks }
+})
+
+ipcMain.handle('parse-local-file', async (_e, filePath: string) => {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return { success: false, error: 'Файл не найден' }
+  }
+  const track = await parseLocalAudioFile(filePath)
+  return { success: true, track }
+})
+
+ipcMain.on('show-item-in-folder', (_e, filePath: string) => {
+  if (filePath && fs.existsSync(filePath)) {
+    shell.showItemInFolder(filePath)
+  }
+})
+

@@ -18,6 +18,7 @@ import { PlaylistsView } from './components/PlaylistsView'
 import { LyricsView } from './components/LyricsView'
 import { SettingsView } from './components/SettingsView'
 import { ArtistView } from './components/ArtistView'
+import { LocalView } from './components/LocalView'
 
 function PlayerApp() {
   const [view, setView] = useState<AppView>('home')
@@ -369,6 +370,16 @@ function PlayerApp() {
           {view === 'favorites' && (
             <Box sx={{ height: '100%', minHeight: 0, overflowY: 'auto' }}>
               <FavoritesView onPlay={handlePlay} />
+            </Box>
+          )}
+
+          {view === 'local' && (
+            <Box sx={{ height: '100%', minHeight: 0, overflowY: 'auto' }}>
+              <LocalView
+                onPlay={handlePlay}
+                onAddToQueue={handleAddToQueue}
+                currentTrackId={state.currentTrack?.id}
+              />
             </Box>
           )}
 

@@ -47,4 +47,11 @@ contextBridge.exposeInMainWorld('melodix', {
     ipcRenderer.on('system-accent-color-changed', handler)
     return () => ipcRenderer.removeListener('system-accent-color-changed', handler)
   },
+
+  // Local Player
+  openLocalFiles: () => ipcRenderer.invoke('open-local-files'),
+  openLocalFolder: () => ipcRenderer.invoke('open-local-folder'),
+  scanLocalFolder: (folderPath: string) => ipcRenderer.invoke('scan-local-folder', folderPath),
+  parseLocalFile: (filePath: string) => ipcRenderer.invoke('parse-local-file', filePath),
+  showItemInFolder: (filePath: string) => ipcRenderer.send('show-item-in-folder', filePath),
 })
