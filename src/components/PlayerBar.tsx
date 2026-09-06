@@ -84,25 +84,41 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
       </Box>
 
       {/* Bar Content: Track info | Controls | Volume & Fullscreen */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" gap={2}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          gap: 2,
+          width: '100%',
+        }}
+      >
         {/* Left: Track Info (clicking opens fullscreen lyrics) */}
         <Box
-          onClick={onOpenFullscreenLyrics}
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 1.5,
-            minWidth: 200,
-            maxWidth: 320,
-            cursor: 'pointer',
-            p: 0.5,
-            borderRadius: 2,
-            transition: 'background 0.15s ease',
-            '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.06)' },
+            justifySelf: 'start',
+            minWidth: 0,
+            maxWidth: '100%',
           }}
         >
-          {currentTrack && (
-            <>
+          {currentTrack ? (
+            <Box
+              onClick={onOpenFullscreenLyrics}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                minWidth: 0,
+                maxWidth: { xs: 200, sm: 260, md: 360 },
+                cursor: 'pointer',
+                p: 0.5,
+                borderRadius: 2,
+                transition: 'background 0.15s ease',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.06)' },
+              }}
+            >
               <Box
                 component="img"
                 src={currentTrack.thumbnail}
@@ -146,16 +162,22 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                   {isFav ? <Favorite fontSize="small" /> : <FavoriteBorder fontSize="small" />}
                 </IconButton>
               </Tooltip>
-            </>
+            </Box>
+          ) : (
+            <Box sx={{ minHeight: 46 }} />
           )}
         </Box>
 
-        {/* Center: Playback Controls */}
+        {/* Center: Playback Controls (Strict mathematical center) */}
         <Box
           display="flex"
           alignItems="center"
           gap={1}
-          sx={{ justifyContent: 'center', pointerEvents: 'auto' }}
+          sx={{
+            justifyContent: 'center',
+            justifySelf: 'center',
+            pointerEvents: 'auto',
+          }}
         >
           <Tooltip title={shuffle ? 'Перемешать: вкл' : 'Перемешать: выкл'}>
             <IconButton
@@ -232,7 +254,16 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         </Box>
 
         {/* Right: Volume & Expand Fullscreen Lyrics Button */}
-        <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 200, justifyContent: 'flex-end' }}>
+        <Box
+          display="flex"
+          alignItems="center"
+          gap={1.5}
+          sx={{
+            minWidth: 0,
+            justifyContent: 'flex-end',
+            justifySelf: 'end',
+          }}
+        >
           <Tooltip title={isMuted ? 'Включить звук' : 'Без звука'}>
             <IconButton
               onClick={(e) => {
@@ -253,7 +284,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             step={0.01}
             onChange={(_e, v) => onVolume(v as number)}
             sx={{
-              width: 90,
+              width: { xs: 70, sm: 90 },
               color: 'primary.main',
               '& .MuiSlider-thumb': { width: 12, height: 12 },
             }}
