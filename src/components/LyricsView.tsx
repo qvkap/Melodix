@@ -9,6 +9,7 @@ import { Howl } from 'howler'
 import { LrcLine, PlayerState } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { ExplicitBadge } from './ExplicitBadge'
+import { MarqueeText } from './MarqueeText'
 import { detectExplicit, formatTime } from '../utils'
 
 interface LyricsViewProps {
@@ -285,35 +286,32 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
             }}
           >
-            <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
-              <Typography
-                variant="h5"
-                noWrap
-                sx={{
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  fontSize: { xs: '1.25rem', sm: '1.45rem', md: '1.65rem' },
-                  letterSpacing: '-0.02em',
-                  textShadow: '0 2px 10px rgba(0,0,0,0.4)',
-                }}
-              >
-                {title || 'Nothing playing'}
-              </Typography>
-              {isExp && <ExplicitBadge size="medium" />}
-            </Box>
-            <Typography
-              variant="body1"
-              noWrap
+            <MarqueeText
+              text={title || 'Nothing playing'}
+              variant="h5"
+              centered
+              badge={isExp ? <ExplicitBadge size="medium" /> : undefined}
               sx={{
-                color: 'rgba(255, 255, 255, 0.65)',
-                fontWeight: 500,
-                fontSize: { xs: '0.95rem', sm: '1.05rem' },
-                mt: 0.5,
-                textShadow: '0 1px 6px rgba(0,0,0,0.3)',
+                fontWeight: 700,
+                color: '#ffffff',
+                fontSize: { xs: '1.25rem', sm: '1.45rem', md: '1.65rem' },
+                letterSpacing: '-0.02em',
+                textShadow: '0 2px 10px rgba(0,0,0,0.4)',
               }}
-            >
-              {artist || '—'}
-            </Typography>
+            />
+            <Box sx={{ mt: 0.5 }}>
+              <MarqueeText
+                text={artist || '—'}
+                variant="body1"
+                centered
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.65)',
+                  fontWeight: 500,
+                  fontSize: { xs: '0.95rem', sm: '1.05rem' },
+                  textShadow: '0 1px 6px rgba(0,0,0,0.3)',
+                }}
+              />
+            </Box>
           </Box>
 
           {/* Progress Bar */}

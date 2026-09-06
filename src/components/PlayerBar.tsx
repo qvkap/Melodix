@@ -11,6 +11,7 @@ import { formatTime, cleanTitle, detectExplicit } from '../utils'
 import { M3ProgressSlider } from './M3ProgressSlider'
 import { useSettings } from '../contexts/SettingsContext'
 import { ExplicitBadge } from './ExplicitBadge'
+import { MarqueeText } from './MarqueeText'
 
 interface PlayerBarProps {
   state: PlayerState
@@ -119,23 +120,17 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 }}
               />
               <Box sx={{ overflow: 'hidden', minWidth: 0, flex: 1 }}>
-                <Box display="flex" alignItems="center" gap={0.8}>
-                  <Typography
-                    variant="subtitle2"
-                    noWrap
-                    sx={{ color: '#ffffff', fontWeight: 700, fontSize: '0.92rem' }}
-                  >
-                    {displayTitle}
-                  </Typography>
-                  {isExp && <ExplicitBadge size="small" />}
-                </Box>
-                <Typography
+                <MarqueeText
+                  text={displayTitle}
+                  variant="subtitle2"
+                  badge={isExp ? <ExplicitBadge size="small" /> : undefined}
+                  sx={{ color: '#ffffff', fontWeight: 700, fontSize: '0.92rem' }}
+                />
+                <MarqueeText
+                  text={currentTrack.artist}
                   variant="caption"
-                  noWrap
                   sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block' }}
-                >
-                  {currentTrack.artist}
-                </Typography>
+                />
               </Box>
 
               {/* Heart Button */}
