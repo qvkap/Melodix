@@ -183,3 +183,24 @@ export function prepareLyricsWithInstrumentals(lines: LrcLine[]): LrcLine[] {
 
   return result
 }
+
+/**
+ * Format track count with proper Russian pluralization:
+ * 1 трек, 2-4 трека, 5-20 треков, 21 трек, etc.
+ */
+export function formatTrackCount(count: number): string {
+  if (!count || count <= 0) return ''
+  const mod100 = Math.abs(count) % 100
+  const mod10 = mod100 % 10
+
+  if (mod100 >= 11 && mod100 <= 19) {
+    return `${count} треков`
+  }
+  if (mod10 === 1) {
+    return `${count} трек`
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return `${count} трека`
+  }
+  return `${count} треков`
+}

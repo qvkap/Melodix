@@ -8,7 +8,7 @@ import {
   Favorite, FavoriteBorder
 } from '@mui/icons-material'
 import { Album, Track } from '../types'
-import { cleanTitle, extractArtistAndTitle, formatTime, detectExplicit } from '../utils'
+import { cleanTitle, extractArtistAndTitle, formatTime, detectExplicit, formatTrackCount } from '../utils'
 import { useSettings } from '../contexts/SettingsContext'
 import { ExplicitBadge } from './ExplicitBadge'
 
@@ -18,10 +18,11 @@ interface AlbumModalProps {
   onClose: () => void
   onPlay: (track: Track, results: Track[]) => void
   onAddToQueue?: (tracks: Track[]) => void
+  onTracksLoaded?: (albumId: string, count: number) => void
 }
 
 export const AlbumModal: React.FC<AlbumModalProps> = ({
-  album, open, onClose, onPlay, onAddToQueue
+  album, open, onClose, onPlay, onAddToQueue, onTracksLoaded
 }) => {
   const { settings, isFavorite, toggleFavorite } = useSettings()
   const [tracks, setTracks] = useState<Track[]>([])
@@ -55,6 +56,9 @@ export const AlbumModal: React.FC<AlbumModalProps> = ({
             }
           })
           setTracks(processed)
+          if (onTracksLoaded && album?.id) {
+            onTracksLoaded(album.id, processed.length)
+          }
         } else {
           setError(res?.error || 'Не удалось загрузить треки альбома')
         }
@@ -169,7 +173,7 @@ export const AlbumModal: React.FC<AlbumModalProps> = ({
             </Typography>
 
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', mb: 2.5, display: 'block' }}>
-              {tracks.length > 0 ? `${tracks.length} треков` : (album.trackCount ? `${album.trackCount} треков` : 'Альбом')}
+              {tracks.length > 0 ? formatTrackCount(tracks.length) : (album.trackCount ? formatTrackCount(album.trackCount) : 'Альбом')}
               {totalDuration > 0 ? ` • ${Math.round(totalDuration / 60)} мин.` : ''}
             </Typography>
 

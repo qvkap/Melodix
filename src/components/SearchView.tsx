@@ -10,7 +10,7 @@ import {
 import { Track, Album } from '../types'
 import { TrackCard } from './TrackCard'
 import { AlbumModal } from './AlbumModal'
-import { cleanTitle, extractArtistAndTitle, formatTime } from '../utils'
+import { cleanTitle, extractArtistAndTitle, formatTime, formatTrackCount } from '../utils'
 import { useSettings } from '../contexts/SettingsContext'
 
 interface SearchViewProps {
@@ -327,7 +327,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
       <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', gap: 0.8 }}>
         <Chip
-          label={album.trackCount ? `${album.trackCount} треков` : 'Альбом'}
+          label={album.trackCount ? formatTrackCount(album.trackCount) : 'Альбом'}
           size="small"
           sx={{
             height: 20,
@@ -694,6 +694,9 @@ export const SearchView: React.FC<SearchViewProps> = ({
         onClose={() => setAlbumModalOpen(false)}
         onPlay={onPlay}
         onAddToQueue={onAddToQueue}
+        onTracksLoaded={(albumId, count) => {
+          setAlbums(prev => prev.map(a => a.id === albumId ? { ...a, trackCount: count } : a))
+        }}
       />
     </Box>
   )

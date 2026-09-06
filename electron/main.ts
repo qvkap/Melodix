@@ -457,7 +457,7 @@ ipcMain.handle('search-albums', async (_event, query: string) => {
             title: item.title || 'Релиз',
             artist: item.channel || item.uploader || channelHandle,
             thumbnail: thumb || '',
-            trackCount: item.playlist_count || item.n_entries || undefined,
+            trackCount: typeof item.playlist_count === 'number' && item.playlist_count > 0 ? item.playlist_count : undefined,
             url: item.url || `https://www.youtube.com/playlist?list=${item.id}`,
           })
         } catch {}
@@ -494,7 +494,7 @@ ipcMain.handle('search-albums', async (_event, query: string) => {
           title: item.title || 'Альбом',
           artist: artist || 'Unknown Artist',
           thumbnail: thumb || '',
-          trackCount: item.playlist_count || item.n_entries || undefined,
+          trackCount: typeof item.playlist_count === 'number' && item.playlist_count > 0 ? item.playlist_count : undefined,
           url: item.url || `https://www.youtube.com/playlist?list=${item.id}`,
         })
       } catch {}
