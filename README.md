@@ -2,7 +2,7 @@
   <img src="public/logo.png" alt="Melodix Logo" width="128" height="128" style="border-radius: 28px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);" />
 </p>
 
-<h1 align="center">Melodix (Beta 0.1)</h1>
+<h1 align="center">Melodix (Beta 0.2)</h1>
 
 <p align="center">
   <b>Современный, сверхбыстрый и эстетичный десктопный музыкальный плеер нового поколения.</b><br/>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0_beta-blueviolet?style=for-the-badge" alt="Version 0.1.0 Beta" />
+  <img src="https://img.shields.io/badge/version-0.2.0_beta-blueviolet?style=for-the-badge" alt="Version 0.2.0 Beta" />
   <img src="https://img.shields.io/badge/platform-Linux_%7C_Windows-0078D6?style=for-the-badge" alt="Linux and Windows" />
   <img src="https://img.shields.io/badge/Electron-30.0-47848F?style=for-the-badge&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />

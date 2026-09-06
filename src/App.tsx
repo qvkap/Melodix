@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { ThemeProvider, CssBaseline } from '@mui/material'
 import { Box } from '@mui/material'
-import { darkTheme } from './theme'
+import { buildAppTheme } from './theme'
 import { SettingsProvider, useSettings } from './contexts/SettingsContext'
 import { usePlayer } from './hooks/usePlayer'
 import { Track } from './types'
@@ -407,13 +407,22 @@ function PlayerApp() {
   )
 }
 
+function ThemedApp() {
+  const { settings } = useSettings()
+  const theme = React.useMemo(() => buildAppTheme(settings.accentColor), [settings.accentColor])
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <PlayerApp />
+    </ThemeProvider>
+  )
+}
+
 export default function App() {
   return (
-    <ThemeProvider theme={darkTheme}>
-      <CssBaseline />
-      <SettingsProvider>
-        <PlayerApp />
-      </SettingsProvider>
-    </ThemeProvider>
+    <SettingsProvider>
+      <ThemedApp />
+    </SettingsProvider>
   )
 }

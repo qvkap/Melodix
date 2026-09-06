@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, systemPreferences } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { execFile, spawn, ChildProcess } from 'child_process'
@@ -201,6 +201,40 @@ ipcMain.handle('check-for-updates', async () => {
 ipcMain.handle('install-update', () => {
   autoUpdater.quitAndInstall()
 })
+
+// System Accent Color (Windows / macOS)
+function getNativeAccentColor(): string | null {
+  try {
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      const raw = systemPreferences.getAccentColor?.()
+      if (raw && raw.length >= 6) {
+        return '#' + raw.slice(0, 6)
+      }
+    }
+  } catch (err) {
+    console.error('Failed to get system accent color:', err)
+  }
+  return null
+}
+
+ipcMain.handle('get-system-accent-color', async () => {
+  const color = getNativeAccentColor()
+  return { success: true, color }
+})
+
+// Listen to Windows accent color changes (when user changes wallpaper or Windows theme)
+if (process.platform === 'win32') {
+  try {
+    systemPreferences.on('accent-color-changed', (_event, newColor) => {
+      if (mainWindow && !mainWindow.isDestroyed() && newColor) {
+        const hex = '#' + newColor.slice(0, 6)
+        mainWindow.webContents.send('system-accent-color-changed', hex)
+      }
+    })
+  } catch (err) {
+    console.log('accent-color-changed listener note:', err)
+  }
+}
 
 // Performance In-Memory Caches
 const searchCache = new Map<string, { data: any; ts: number }>()

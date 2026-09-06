@@ -75,6 +75,8 @@ declare global {
       checkForUpdates?: () => Promise<{ success: boolean; status?: string; message?: string; updateInfo?: any; error?: string }>
       installUpdate?: () => Promise<void>
       onUpdateMessage?: (callback: (data: { status: string; message?: string; version?: string; percent?: number }) => void) => () => void
+      getSystemAccentColor?: () => Promise<{ success: boolean; color?: string | null }>
+      onSystemAccentColorChanged?: (callback: (color: string) => void) => () => void
     }
   }
 }

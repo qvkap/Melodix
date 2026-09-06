@@ -39,4 +39,12 @@ contextBridge.exposeInMainWorld('melodix', {
     ipcRenderer.on('updater-message', handler)
     return () => ipcRenderer.removeListener('updater-message', handler)
   },
+
+  // System Accent Color
+  getSystemAccentColor: () => ipcRenderer.invoke('get-system-accent-color'),
+  onSystemAccentColorChanged: (callback: (color: string) => void) => {
+    const handler = (_event: any, color: string) => callback(color)
+    ipcRenderer.on('system-accent-color-changed', handler)
+    return () => ipcRenderer.removeListener('system-accent-color-changed', handler)
+  },
 })

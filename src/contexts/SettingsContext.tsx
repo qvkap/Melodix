@@ -8,6 +8,8 @@ export interface Settings {
   backgroundBlur: boolean
   backgroundBlurAmount: number      // 20–150
   lyricsBlurFuture: boolean
+  accentColorMode: 'custom' | 'system'
+  accentColor: string
   exclusionWords: string[]
   // Last.fm
   lastfmEnabled: boolean
@@ -27,6 +29,8 @@ const DEFAULTS: Settings = {
   backgroundBlur: true,
   backgroundBlurAmount: 75,
   lyricsBlurFuture: true,
+  accentColorMode: 'custom',
+  accentColor: '#d0bcff',
   exclusionWords: [
     'Official Video', 'Official Audio', 'Official Music Video',
     'Official Lyric Video', 'Lyric Video', 'Music Video',
@@ -79,6 +83,29 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     localStorage.setItem('melodix-settings-v2', JSON.stringify(settings))
   }, [settings])
+
+  // Sync with Windows / System Accent Color when mode is 'system'
+  useEffect(() => {
+    if (settings.accentColorMode === 'system' && window.melodix?.getSystemAccentColor) {
+      window.melodix.getSystemAccentColor().then(res => {
+        if (res?.success && res.color) {
+          setSettings(s => ({ ...s, accentColor: res.color! }))
+        }
+      })
+    }
+
+    if (window.melodix?.onSystemAccentColorChanged) {
+      const unsub = window.melodix.onSystemAccentColorChanged((newColor) => {
+        setSettings(s => {
+          if (s.accentColorMode === 'system') {
+            return { ...s, accentColor: newColor }
+          }
+          return s
+        })
+      })
+      return () => unsub?.()
+    }
+  }, [settings.accentColorMode])
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings(s => ({ ...s, ...patch }))

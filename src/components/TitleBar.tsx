@@ -100,7 +100,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
               letterSpacing: 0.8,
             }}
           >
-            BETA 0.1
+            BETA 0.2
           </Typography>
         </Box>
       </Box>
