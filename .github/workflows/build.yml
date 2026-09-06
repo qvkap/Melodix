@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
@@ -55,13 +55,13 @@ jobs:
 
       - name: Package Linux (AppImage & deb)
         if: matrix.platform == 'linux'
-        run: npx electron-builder --linux
+        run: npx electron-builder --linux --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package Windows (Portable & zip)
         if: matrix.platform == 'windows'
-        run: npx electron-builder --win
+        run: npx electron-builder --win --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

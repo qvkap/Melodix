@@ -2,6 +2,10 @@
   "name": "melodix",
   "version": "0.1.0",
   "description": "Melodix — Modern Music Player with Synchronized Lyrics",
+  "author": {
+    "name": "qvkap",
+    "email": "qvkapp@gmail.com"
+  },
   "main": "dist-electron/main.js",
   "scripts": {
     "start": "electron . --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland",
@@ -49,6 +53,7 @@
         "AppImage",
         "deb"
       ],
+      "maintainer": "qvkap <qvkapp@gmail.com>",
       "category": "Audio"
     },
     "extraResources": [
