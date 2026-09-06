@@ -74,6 +74,8 @@ jobs:
             dist/*.deb
             dist/*.exe
             dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -84,5 +86,7 @@ jobs:
             dist/*.deb
             dist/*.exe
             dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
