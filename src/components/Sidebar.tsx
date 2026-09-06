@@ -178,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           variant="caption"
           sx={{ color: 'rgba(255, 255, 255, 0.35)', textAlign: 'center', pb: 0.5, letterSpacing: 1, fontWeight: 700 }}
         >
-          MELODIX BETA 0.3
+          MELODIX 1.0 BETA
         </Typography>
       </Box>
     </Drawer>

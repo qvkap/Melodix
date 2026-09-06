@@ -1,0 +1,254 @@
+import React from 'react'
+import { Box, Typography } from '@mui/material'
+import {
+  HomeRounded,
+  QueueMusicRounded,
+  SettingsRounded,
+  SearchRounded,
+} from '@mui/icons-material'
+import { AppView } from './Sidebar'
+
+export type MobileBarStyle = 'ios' | 'android'
+
+interface MobileBottomBarProps {
+  currentView: AppView
+  onView: (view: AppView) => void
+  style?: MobileBarStyle
+}
+
+export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
+  currentView,
+  onView,
+  style = 'android',
+}) => {
+  const isIos = style === 'ios'
+
+  const navItems = [
+    { id: 'home' as AppView, label: 'Главная', icon: HomeRounded },
+    { id: 'playlists' as AppView, label: 'Плейлисты', icon: QueueMusicRounded },
+    { id: 'settings' as AppView, label: 'Настройки', icon: SettingsRounded },
+  ]
+
+  if (isIos) {
+    // ─── iOS Style: Liquid Glass Floating Capsule ───────────────────────────
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1200,
+          width: 'calc(100% - 28px)',
+          maxWidth: 440,
+          height: 68,
+          borderRadius: '34px',
+          bgcolor: 'rgba(16, 18, 28, 0.72)',
+          backdropFilter: 'blur(36px) saturate(220%)',
+          WebkitBackdropFilter: 'blur(36px) saturate(220%)',
+          border: '1.2px solid rgba(255, 255, 255, 0.22)',
+          boxShadow: `
+            0 16px 40px -8px rgba(0, 0, 0, 0.75),
+            inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.35),
+            0 0 20px rgba(208, 188, 255, 0.12)
+          `,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 1.5,
+          userSelect: 'none',
+        }}
+      >
+        {/* Navigation Tabs (Left & Center) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, justifyContent: 'space-around' }}>
+          {navItems.map(item => {
+            const isActive = currentView === item.id
+            const Icon = item.icon
+            return (
+              <Box
+                key={item.id}
+                onClick={() => onView(item.id)}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  py: 0.5,
+                  px: 1.5,
+                  borderRadius: '20px',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
+                  '&:active': { transform: 'scale(0.92)' },
+                }}
+              >
+                <Icon
+                  sx={{
+                    fontSize: 24,
+                    color: isActive ? 'primary.light' : 'rgba(255, 255, 255, 0.55)',
+                    transition: 'color 0.2s ease, transform 0.2s ease',
+                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                    filter: isActive ? 'drop-shadow(0 0 6px rgba(208, 188, 255, 0.5))' : 'none',
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: '0.68rem',
+                    fontWeight: isActive ? 700 : 500,
+                    color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.5)',
+                    mt: 0.2,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {item.label}
+                </Typography>
+              </Box>
+            )
+          })}
+        </Box>
+
+        {/* Vertical subtle glass divider */}
+        <Box sx={{ width: '1px', height: 28, bgcolor: 'rgba(255, 255, 255, 0.15)', mx: 0.8 }} />
+
+        {/* Distinct Liquid Glass Search Bubble at the end */}
+        <Box
+          onClick={() => onView('search')}
+          sx={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: currentView === 'search'
+              ? 'linear-gradient(135deg, #d0bcff 0%, #b388ff 100%)'
+              : 'linear-gradient(135deg, rgba(208, 188, 255, 0.35) 0%, rgba(144, 202, 249, 0.2) 100%)',
+            border: '1.5px solid rgba(255, 255, 255, 0.45)',
+            boxShadow: currentView === 'search'
+              ? '0 6px 20px rgba(208, 188, 255, 0.6), inset 0 2px 2px rgba(255, 255, 255, 0.8)'
+              : '0 4px 14px rgba(0, 0, 0, 0.4), inset 0 1.5px 1.5px rgba(255, 255, 255, 0.5)',
+            transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+            flexShrink: 0,
+            '&:hover': { transform: 'scale(1.08)' },
+            '&:active': { transform: 'scale(0.94)' },
+          }}
+        >
+          <SearchRounded
+            sx={{
+              color: currentView === 'search' ? '#141218' : '#ffffff',
+              fontSize: 25,
+            }}
+          />
+        </Box>
+      </Box>
+    )
+  }
+
+  // ─── Android Style: Material You M3 ──────────────────────────────────────
+  return (
+    <Box
+      sx={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1200,
+        height: 'calc(76px + env(safe-area-inset-bottom, 0px))',
+        pb: 'env(safe-area-inset-bottom, 0px)',
+        bgcolor: 'rgba(20, 22, 32, 0.97)',
+        backdropFilter: 'blur(20px)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: 2,
+        userSelect: 'none',
+      }}
+    >
+      {/* M3 Navigation Tabs */}
+      <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, justifyContent: 'space-around' }}>
+        {navItems.map(item => {
+          const isActive = currentView === item.id
+          const Icon = item.icon
+          return (
+            <Box
+              key={item.id}
+              onClick={() => onView(item.id)}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flex: 1,
+                py: 0.5,
+              }}
+            >
+              {/* M3 Active Indicator Pill */}
+              <Box
+                sx={{
+                  width: 58,
+                  height: 32,
+                  borderRadius: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: isActive ? 'rgba(208, 188, 255, 0.22)' : 'transparent',
+                  transition: 'background-color 0.2s ease',
+                }}
+              >
+                <Icon
+                  sx={{
+                    fontSize: 23,
+                    color: isActive ? 'primary.light' : 'rgba(255, 255, 255, 0.65)',
+                    transition: 'color 0.2s ease',
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '0.72rem',
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)',
+                  mt: 0.4,
+                  letterSpacing: '0.2px',
+                }}
+              >
+                {item.label}
+              </Typography>
+            </Box>
+          )
+        })}
+      </Box>
+
+      {/* M3 Search Floating Action Bubble at the end */}
+      <Box
+        onClick={() => onView('search')}
+        sx={{
+          width: 52,
+          height: 52,
+          borderRadius: '18px', // M3 squircle
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: currentView === 'search' ? 'primary.main' : 'rgba(208, 188, 255, 0.16)',
+          color: currentView === 'search' ? '#141218' : 'primary.light',
+          boxShadow: currentView === 'search'
+            ? '0 6px 18px rgba(208, 188, 255, 0.4)'
+            : '0 2px 8px rgba(0, 0, 0, 0.25)',
+          transition: 'all 0.2s ease',
+          ml: 1,
+          flexShrink: 0,
+          '&:hover': { transform: 'scale(1.06)' },
+          '&:active': { transform: 'scale(0.95)' },
+        }}
+      >
+        <SearchRounded sx={{ fontSize: 26 }} />
+      </Box>
+    </Box>
+  )
+}

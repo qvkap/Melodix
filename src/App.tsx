@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ThemeProvider, CssBaseline } from '@mui/material'
+import { ThemeProvider, CssBaseline, useMediaQuery } from '@mui/material'
 import { Box } from '@mui/material'
 import { buildAppTheme } from './theme'
 import { SettingsProvider, useSettings } from './contexts/SettingsContext'
@@ -10,6 +10,8 @@ import { cleanTitle, getThumbnail } from './utils'
 import { TitleBar } from './components/TitleBar'
 import { Sidebar, SIDEBAR_WIDTH, AppView } from './components/Sidebar'
 import { PlayerBar } from './components/PlayerBar'
+import { MobileBottomBar, MobileBarStyle } from './components/MobileBottomBar'
+import { detectMobilePlatform } from './services/mobileBridge'
 import { HomeView } from './components/HomeView'
 import { SearchView } from './components/SearchView'
 import { QueueView } from './components/QueueView'
@@ -28,6 +30,19 @@ function PlayerApp() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const { settings } = useSettings()
+
+  const isSmallScreen = useMediaQuery('(max-width: 768px)')
+  const detectedPlatform = React.useMemo(() => detectMobilePlatform(), [])
+  const isMobile = isSmallScreen || detectedPlatform !== 'desktop'
+
+  const effectiveBarStyle: MobileBarStyle = React.useMemo(() => {
+    if (settings.mobileBarStyle === 'ios') return 'ios'
+    if (settings.mobileBarStyle === 'android') return 'android'
+    return detectedPlatform === 'ios' ? 'ios' : 'android'
+  }, [settings.mobileBarStyle, detectedPlatform])
+
+  const mobileBarHeight = effectiveBarStyle === 'ios' ? 86 : 76
+  const bottomOffset = isMobile ? mobileBarHeight : 0
 
   const handleSelectArtist = (artistName: string, avatarUrl?: string) => {
     setSelectedArtist({ name: artistName, avatar: avatarUrl })
@@ -275,10 +290,10 @@ function PlayerApp() {
           display: 'flex',
           flexDirection: 'column',
           pt: '42px',
-          pb: isFullscreenLyrics ? 0 : '76px',
+          pb: isFullscreenLyrics ? 0 : (isMobile ? `${mobileBarHeight + (state.currentTrack ? 94 : 16)}px` : '76px'),
           position: 'relative',
           zIndex: 1,
-          ml: isFullscreenLyrics ? 0 : `${currentSidebarWidth}px`,
+          ml: isFullscreenLyrics ? 0 : (isMobile ? 0 : `${currentSidebarWidth}px`),
           minHeight: 0,
           minWidth: 0,
           transition: 'margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -402,7 +417,8 @@ function PlayerApp() {
         <PlayerBar
           state={state}
           howlRef={howlRef}
-          sidebarWidth={currentSidebarWidth}
+          sidebarWidth={isMobile ? 0 : currentSidebarWidth}
+          bottomOffset={bottomOffset}
           onTogglePlay={togglePlay}
           onSeek={seek}
           onVolume={setVolume}
@@ -412,6 +428,18 @@ function PlayerApp() {
           onShuffle={toggleShuffle}
           onRepeat={cycleRepeat}
           onOpenFullscreenLyrics={() => setIsFullscreenLyrics(true)}
+        />
+      )}
+
+      {/* Mobile Bottom Navigation Bar (iOS Liquid Glass / Android Material You) */}
+      {isMobile && !isFullscreenLyrics && (
+        <MobileBottomBar
+          currentView={view}
+          onView={(v) => {
+            setView(v)
+            setIsFullscreenLyrics(false)
+          }}
+          style={effectiveBarStyle}
         />
       )}
     </Box>

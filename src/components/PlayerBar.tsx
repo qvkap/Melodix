@@ -17,6 +17,7 @@ interface PlayerBarProps {
   state: PlayerState
   howlRef: React.RefObject<Howl | null>
   sidebarWidth: number
+  bottomOffset?: number
   onTogglePlay: () => void
   onSeek: (v: number) => void
   onVolume: (v: number) => void
@@ -32,6 +33,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
   state,
   howlRef,
   sidebarWidth,
+  bottomOffset = 0,
   onTogglePlay,
   onSeek,
   onVolume,
@@ -54,10 +56,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     <Box
       sx={{
         position: 'fixed',
-        bottom: 0,
+        bottom: bottomOffset,
         left: sidebarWidth,
         right: 0,
-        zIndex: 100,
+        zIndex: 1100,
         background: 'linear-gradient(0deg, rgba(12, 14, 20, 0.98) 75%, rgba(12, 14, 20, 0.75) 100%)',
         backdropFilter: 'blur(30px)',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',

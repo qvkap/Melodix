@@ -11,6 +11,7 @@ export interface Settings {
   accentColorMode: 'custom' | 'system'
   accentColor: string
   exclusionWords: string[]
+  mobileBarStyle: 'auto' | 'ios' | 'android'
   // Last.fm
   lastfmEnabled: boolean
   lastfmApiKey: string
@@ -38,6 +39,7 @@ const DEFAULTS: Settings = {
     'Full HD', 'Audio Only', 'Visualizer', 'Live', 'Live Performance',
     'Topic', 'Lyrics', 'Audio'
   ],
+  mobileBarStyle: 'auto',
   lastfmEnabled: false,
   lastfmApiKey: '',
   lastfmSecret: '',

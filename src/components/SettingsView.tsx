@@ -357,6 +357,56 @@ export const SettingsView: React.FC = () => {
             />
           </Box>
         )}
+
+        {/* Mobile Navigation Bar Style Selector */}
+        <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 600, mb: 0.5 }}>
+            {t.mobileBarTitle}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'block', mb: 1.5 }}>
+            Оформление панели управления на смартфонах и при сжатии окна
+          </Typography>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1 }}>
+            {[
+              { value: 'auto', title: 'Авто (по ОС)', desc: t.mobileBarAuto },
+              { value: 'ios', title: 'iOS (Liquid Glass)', desc: 'Парящее матовое стекло' },
+              { value: 'android', title: 'Android (Material You)', desc: 'M3 Pill навигация' },
+            ].map(item => {
+              const isSelected = (settings.mobileBarStyle || 'auto') === item.value
+              return (
+                <Box
+                  key={item.value}
+                  onClick={() => update({ mobileBarStyle: item.value as any })}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2.5,
+                    cursor: 'pointer',
+                    bgcolor: isSelected ? 'rgba(208, 188, 255, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                    border: isSelected ? '1.5px solid #d0bcff' : '1.5px solid transparent',
+                    transition: 'all 0.18s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    '&:hover': {
+                      bgcolor: isSelected ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                    },
+                  }}
+                >
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontSize: '0.84rem', fontWeight: isSelected ? 700 : 600, color: isSelected ? 'primary.light' : '#ffffff' }}>
+                      {item.title}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', fontSize: '0.7rem' }}>
+                      {item.desc}
+                    </Typography>
+                  </Box>
+                  {isSelected && <Check sx={{ color: 'primary.main', fontSize: 18 }} />}
+                </Box>
+              )
+            })}
+          </Box>
+        </Box>
       </SectionCard>
 
       {/* 3. Accent Color (Custom or Windows Wallpaper / System Color) */}
@@ -625,7 +675,7 @@ export const SettingsView: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
             <Box>
               <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700 }}>
-                Melodix Beta 0.3
+                Melodix 1.0 Beta
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
                 {updateStatus?.message || 'Автоматическая проверка обновлений при запуске'}

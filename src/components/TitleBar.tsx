@@ -3,6 +3,7 @@ import { Box, IconButton, Tooltip, Typography, Button } from '@mui/material'
 import {
   MinimizeRounded, CropSquare, Close, GraphicEq, Menu as MenuIcon, SystemUpdate
 } from '@mui/icons-material'
+import { isElectron } from '../services/mobileBridge'
 
 interface TitleBarProps {
   onToggleSidebar: () => void
@@ -88,20 +89,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
           >
             MELODIX
           </Typography>
-          <Typography
-            sx={{
-              fontSize: '0.62rem',
-              fontWeight: 700,
-              color: 'primary.main',
-              bgcolor: 'rgba(208, 188, 255, 0.12)',
-              px: 0.6,
-              py: 0.1,
-              borderRadius: 1,
-              letterSpacing: 0.8,
-            }}
-          >
-            BETA 0.2
-          </Typography>
         </Box>
       </Box>
 
@@ -169,36 +156,38 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
         </Box>
       )}
 
-      {/* Right: Window Controls */}
-      <Box display="flex" gap={0.5} sx={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' }}>
-        <Tooltip title="Свернуть">
-          <IconButton
-            size="small"
-            onClick={() => window.melodix?.minimize?.()}
-            sx={{ color: 'rgba(255, 255, 255, 0.65)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
-          >
-            <MinimizeRounded fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Развернуть">
-          <IconButton
-            size="small"
-            onClick={() => window.melodix?.maximize?.()}
-            sx={{ color: 'rgba(255, 255, 255, 0.65)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
-          >
-            <CropSquare fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Закрыть">
-          <IconButton
-            size="small"
-            onClick={() => window.melodix?.close?.()}
-            sx={{ color: 'rgba(255, 255, 255, 0.65)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(244,67,54,0.85)', color: '#ffffff' } }}
-          >
-            <Close fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
+      {/* Right: Window Controls (Desktop Electron only) */}
+      {isElectron() && (
+        <Box display="flex" gap={0.5} sx={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' }}>
+          <Tooltip title="Свернуть">
+            <IconButton
+              size="small"
+              onClick={() => window.melodix?.minimize?.()}
+              sx={{ color: 'rgba(255, 255, 255, 0.65)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <MinimizeRounded fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Развернуть">
+            <IconButton
+              size="small"
+              onClick={() => window.melodix?.maximize?.()}
+              sx={{ color: 'rgba(255, 255, 255, 0.65)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <CropSquare fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Закрыть">
+            <IconButton
+              size="small"
+              onClick={() => window.melodix?.close?.()}
+              sx={{ color: 'rgba(255, 255, 255, 0.65)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(244,67,54,0.85)', color: '#ffffff' } }}
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
     </Box>
   )
 }
