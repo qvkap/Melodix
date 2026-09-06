@@ -79,7 +79,11 @@
       "signAndEditExecutable": false
     },
     "mac": {
-      "target": "dmg"
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null
     }
   },
   "allowScripts": {

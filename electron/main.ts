@@ -53,7 +53,26 @@ function getYtdlpPath(): string {
     return 'yt-dlp.exe'
   }
 
-  // Linux / macOS
+  if (process.platform === 'darwin') {
+    // macOS: prefer yt-dlp_macos universal binary bundled in CI
+    const macBundled = join(process.resourcesPath, 'bin', 'yt-dlp_macos')
+    if (fs.existsSync(macBundled)) return macBundled
+
+    const macLocal = join(app.getAppPath(), 'bin', 'yt-dlp_macos')
+    if (fs.existsSync(macLocal)) return macLocal
+
+    // Fall back to plain yt-dlp (also bundled in CI)
+    const plainBundled = join(process.resourcesPath, 'bin', 'yt-dlp')
+    if (fs.existsSync(plainBundled)) return plainBundled
+
+    // Homebrew locations
+    if (fs.existsSync('/usr/local/bin/yt-dlp')) return '/usr/local/bin/yt-dlp'
+    if (fs.existsSync('/opt/homebrew/bin/yt-dlp')) return '/opt/homebrew/bin/yt-dlp'
+
+    return 'yt-dlp'
+  }
+
+  // Linux
   const bundledLinux = join(process.resourcesPath, 'bin', 'yt-dlp')
   if (fs.existsSync(bundledLinux)) return bundledLinux
 

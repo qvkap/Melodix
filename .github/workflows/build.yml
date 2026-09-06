@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.artifact_name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -23,9 +23,14 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             artifact_name: Melodix-Linux
+
           - os: windows-latest
             platform: windows
             artifact_name: Melodix-Windows
+
+          - os: macos-latest
+            platform: mac
+            artifact_name: Melodix-macOS
 
     steps:
       - name: Checkout repository
@@ -44,9 +49,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p bin
+          # Windows binary
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o bin/yt-dlp.exe
+          # Linux / macOS binary
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp
           chmod +x bin/yt-dlp
+          # macOS binary (universal)
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos -o bin/yt-dlp_macos
+          chmod +x bin/yt-dlp_macos
 
       - name: Build Electron Main & Renderer
         run: |
@@ -65,6 +75,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Package macOS (DMG & zip)
+        if: matrix.platform == 'mac'
+        run: npx electron-builder --mac --publish never
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No signing in CI — users will need to right-click → Open on first launch
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -74,16 +92,18 @@ jobs:
             dist/*.deb
             dist/*.exe
             dist/*.zip
+            dist/*.dmg
             dist/*.blockmap
             dist/latest*.yml
 
-      # Upload assets to release — allowUpdates:true handles existing releases gracefully
+      # ── Release uploads (only on tag pushes) ──────────────────────────────
+
       - name: Upload release assets (Linux)
         if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'linux'
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
-          artifacts: "dist/*.AppImage,dist/*.deb,dist/latest*.yml"
+          artifacts: "dist/*.AppImage,dist/*.deb,dist/latest-linux.yml"
           allowUpdates: true
           updateOnlyUnreleased: false
           omitBodyDuringUpdate: true
@@ -97,7 +117,21 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
-          artifacts: "dist/*.exe,dist/*.zip,dist/*.blockmap,dist/latest*.yml"
+          artifacts: "dist/*.exe,dist/*.zip,dist/*.blockmap,dist/latest.yml"
+          allowUpdates: true
+          updateOnlyUnreleased: false
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
+          generateReleaseNotes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets (macOS)
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'mac'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          artifacts: "dist/*.dmg,dist/*-mac.zip,dist/latest-mac.yml"
           allowUpdates: true
           updateOnlyUnreleased: false
           omitBodyDuringUpdate: true
