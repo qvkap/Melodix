@@ -394,7 +394,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             </Box>
           </Box>
 
-          {/* Controls with "T" (Lyrics toggle) right alongside them! */}
+          {/* Controls with perfectly centered Play/Pause and balanced buttons on both sides */}
           <Box
             sx={{
               display: 'flex',
@@ -402,29 +402,82 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               justifyContent: 'center',
               gap: 1.2,
               mt: 1,
+              width: '100%',
+              maxWidth: { xs: 280, sm: 330, md: showLyrics ? 360 : 440, lg: showLyrics ? 400 : 480 },
+              mx: 'auto',
             }}
           >
+            {/* Left 1: Favorite */}
+            <Tooltip title={isFav ? 'Удалить из избранного' : 'В избранное'}>
+              <IconButton
+                onClick={() => playerState.currentTrack && toggleFavorite(playerState.currentTrack)}
+                size="small"
+                sx={{
+                  width: 38,
+                  height: 38,
+                  color: isFav ? '#ff4081' : 'rgba(255,255,255,0.45)',
+                  borderRadius: 2,
+                  transition: 'all 0.18s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    transform: 'scale(1.08)'
+                  },
+                  '&:active': { transform: 'scale(0.95)' },
+                }}
+              >
+                {isFav ? <Favorite fontSize="small" /> : <FavoriteBorder fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+
+            {/* Left 2: Shuffle */}
             <Tooltip title={playerState.shuffle ? 'Перемешать: вкл' : 'Перемешать: выкл'}>
               <IconButton
                 onClick={onShuffle}
                 size="small"
-                sx={{ color: playerState.shuffle ? 'primary.main' : 'rgba(255,255,255,0.45)', borderRadius: 2 }}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  color: playerState.shuffle ? 'primary.main' : 'rgba(255,255,255,0.45)',
+                  borderRadius: 2,
+                  transition: 'all 0.18s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    transform: 'scale(1.08)'
+                  },
+                  '&:active': { transform: 'scale(0.95)' },
+                }}
               >
                 <Shuffle fontSize="small" />
               </IconButton>
             </Tooltip>
 
+            {/* Left 3: Previous */}
             <Tooltip title="Предыдущий трек">
-              <IconButton onClick={onPrev} sx={{ color: '#ffffff', borderRadius: 2 }}>
-                <SkipPrevious />
+              <IconButton
+                onClick={onPrev}
+                sx={{
+                  width: 44,
+                  height: 44,
+                  color: '#ffffff',
+                  borderRadius: 2,
+                  transition: 'all 0.18s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    transform: 'scale(1.08)'
+                  },
+                  '&:active': { transform: 'scale(0.95)' },
+                }}
+              >
+                <SkipPrevious sx={{ fontSize: 28 }} />
               </IconButton>
             </Tooltip>
 
+            {/* CENTER: Play/Pause (Big center circle - dead center) */}
             <IconButton
               onClick={onTogglePlay}
               sx={{
-                width: 50,
-                height: 50,
+                width: 52,
+                height: 52,
                 bgcolor: '#ffffff',
                 color: '#0a0d14',
                 borderRadius: '50%',
@@ -437,38 +490,53 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                 '&:active': { transform: 'scale(0.95)' },
               }}
             >
-              {playerState.isPlaying ? <Pause /> : <PlayArrow />}
+              {playerState.isPlaying ? <Pause sx={{ fontSize: 30 }} /> : <PlayArrow sx={{ fontSize: 30 }} />}
             </IconButton>
 
+            {/* Right 1: Next */}
             <Tooltip title="Следующий трек">
-              <IconButton onClick={onNext} sx={{ color: '#ffffff', borderRadius: 2 }}>
-                <SkipNext />
+              <IconButton
+                onClick={onNext}
+                sx={{
+                  width: 44,
+                  height: 44,
+                  color: '#ffffff',
+                  borderRadius: 2,
+                  transition: 'all 0.18s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    transform: 'scale(1.08)'
+                  },
+                  '&:active': { transform: 'scale(0.95)' },
+                }}
+              >
+                <SkipNext sx={{ fontSize: 28 }} />
               </IconButton>
             </Tooltip>
 
-            {playerState.currentTrack && (
-              <Tooltip title={isFav ? 'Удалить из избранного' : 'В избранное'}>
-                <IconButton
-                  onClick={() => toggleFavorite(playerState.currentTrack!)}
-                  size="small"
-                  sx={{ color: isFav ? '#ff4081' : 'rgba(255,255,255,0.45)', borderRadius: 2 }}
-                >
-                  {isFav ? <Favorite fontSize="small" /> : <FavoriteBorder fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-            )}
-
+            {/* Right 2: Repeat */}
             <Tooltip title={playerState.repeat === 'none' ? 'Без повтора' : playerState.repeat === 'all' ? 'Повтор всех' : 'Повтор одного'}>
               <IconButton
                 onClick={onRepeat}
                 size="small"
-                sx={{ color: playerState.repeat !== 'none' ? 'primary.main' : 'rgba(255,255,255,0.45)', borderRadius: 2 }}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  color: playerState.repeat !== 'none' ? 'primary.main' : 'rgba(255,255,255,0.45)',
+                  borderRadius: 2,
+                  transition: 'all 0.18s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    transform: 'scale(1.08)'
+                  },
+                  '&:active': { transform: 'scale(0.95)' },
+                }}
               >
                 <RepeatIcon fontSize="small" />
               </IconButton>
             </Tooltip>
 
-            {/* "T" Lyrics Toggle Button placed alongside playback controls */}
+            {/* Right 3: "T" Lyrics Toggle */}
             <Tooltip title={showLyrics ? 'Скрыть текст песни (Т)' : 'Показать текст песни (Т)'}>
               <IconButton
                 onClick={() => setShowLyrics(prev => !prev)}
@@ -477,8 +545,10 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   color: showLyrics ? 'primary.main' : 'rgba(255, 255, 255, 0.5)',
                   bgcolor: showLyrics ? 'rgba(208, 188, 255, 0.16)' : 'rgba(255, 255, 255, 0.05)',
                   borderRadius: 2.5,
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
+                  border: '1px solid',
+                  borderColor: showLyrics ? 'rgba(208, 188, 255, 0.35)' : 'rgba(255, 255, 255, 0.1)',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
                     color: '#ffffff',
@@ -488,7 +558,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   '&:active': { transform: 'scale(0.95)' },
                 }}
               >
-                <Typography sx={{ fontWeight: 800, fontSize: '0.98rem', lineHeight: 1 }}>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', lineHeight: 1 }}>
                   Т
                 </Typography>
               </IconButton>
