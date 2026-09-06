@@ -72,6 +72,9 @@ declare global {
       storeGet: (key: string) => Promise<any>
       storeSet: (key: string, value: any) => Promise<void>
       getUsername?: () => Promise<string>
+      checkForUpdates?: () => Promise<{ success: boolean; status?: string; message?: string; updateInfo?: any; error?: string }>
+      installUpdate?: () => Promise<void>
+      onUpdateMessage?: (callback: (data: { status: string; message?: string; version?: string; percent?: number }) => void) => () => void
     }
   }
 }

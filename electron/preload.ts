@@ -30,4 +30,13 @@ contextBridge.exposeInMainWorld('melodix', {
       return 'rorka'
     }
   },
+
+  // Auto Updater
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateMessage: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('updater-message', handler)
+    return () => ipcRenderer.removeListener('updater-message', handler)
+  },
 })

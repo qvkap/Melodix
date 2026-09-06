@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Box, Typography, Switch, Slider, Chip, TextField,
   Button, Paper, Accordion, AccordionSummary, AccordionDetails,
@@ -6,7 +6,8 @@ import {
 } from '@mui/material'
 import {
   Add, Delete, RestartAlt, ExpandMore, Language, BlurOn,
-  SettingsApplications, Tune, CloudQueue, Check, CheckCircle, ErrorOutline
+  SettingsApplications, Tune, CloudQueue, Check, CheckCircle, ErrorOutline,
+  SystemUpdateAlt, Refresh, Download
 } from '@mui/icons-material'
 import { useSettings } from '../contexts/SettingsContext'
 import { BlurMaterial, AppLanguage } from '../types'
@@ -14,6 +15,44 @@ import { BlurMaterial, AppLanguage } from '../types'
 export const SettingsView: React.FC = () => {
   const { settings, t, update, resetExclusions } = useSettings()
   const [newWord, setNewWord] = useState('')
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<{
+    status: string
+    message?: string
+    version?: string
+    percent?: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!window.melodix?.onUpdateMessage) return
+    const unsub = window.melodix.onUpdateMessage((data) => {
+      setUpdateStatus(data)
+      if (data.status !== 'checking') {
+        setCheckingUpdate(false)
+      }
+    })
+    return () => unsub?.()
+  }, [])
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true)
+    try {
+      const res = await window.melodix?.checkForUpdates?.()
+      if (res?.status === 'dev') {
+        setUpdateStatus({ status: 'dev', message: res.message || 'Режим разработки (dev)' })
+      } else if (res && !res.success && res.error) {
+        setUpdateStatus({ status: 'error', message: res.error })
+      }
+    } catch (e: any) {
+      setUpdateStatus({ status: 'error', message: e?.message || 'Ошибка проверки' })
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
+  const handleInstallUpdate = () => {
+    window.melodix?.installUpdate?.()
+  }
 
   const addWord = () => {
     const w = newWord.trim()
@@ -283,7 +322,82 @@ export const SettingsView: React.FC = () => {
         )}
       </SectionCard>
 
-      {/* 5. Advanced Settings (Title Cleanup) - Borderless Accordion */}
+      {/* 5. App Updates */}
+      <SectionCard title="Обновление приложения" icon={<SystemUpdateAlt sx={{ color: 'primary.main', fontSize: 20 }} />}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700 }}>
+                Melodix Beta 0.1
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                {updateStatus?.message || 'Автоматическая проверка обновлений при запуске'}
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {updateStatus?.status === 'downloaded' ? (
+                <Button
+                  variant="contained"
+                  startIcon={<Download />}
+                  onClick={handleInstallUpdate}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: '#141218',
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    borderRadius: 2.5,
+                  }}
+                >
+                  Перезапустить и обновить
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  startIcon={<Refresh sx={{ animation: checkingUpdate ? 'spin 1s linear infinite' : 'none', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} />}
+                  onClick={handleCheckUpdate}
+                  disabled={checkingUpdate}
+                  sx={{
+                    borderColor: 'rgba(255,255,255,0.15)',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    borderRadius: 2.5,
+                    '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(208, 188, 255, 0.08)' }
+                  }}
+                >
+                  {checkingUpdate ? 'Проверка...' : 'Проверить обновления'}
+                </Button>
+              )}
+            </Box>
+          </Box>
+
+          {updateStatus?.percent !== undefined && updateStatus.status === 'downloading' && (
+            <Box sx={{ width: '100%', mt: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography variant="caption" sx={{ color: 'primary.light' }}>
+                  Загрузка новой версии...
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'primary.light', fontWeight: 700 }}>
+                  {updateStatus.percent}%
+                </Typography>
+              </Box>
+              <Box sx={{ width: '100%', height: 6, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+                <Box
+                  sx={{
+                    width: `${updateStatus.percent}%`,
+                    height: '100%',
+                    bgcolor: 'primary.main',
+                    transition: 'width 0.2s ease',
+                  }}
+                />
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </SectionCard>
+
+      {/* 6. Advanced Settings (Title Cleanup) - Borderless Accordion */}
       <Accordion
         elevation={0}
         sx={{

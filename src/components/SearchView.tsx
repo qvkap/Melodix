@@ -209,7 +209,12 @@ export const SearchView: React.FC<SearchViewProps> = ({
       key={album.id}
       onClick={() => handleOpenAlbum(album)}
       sx={{
-        p: 2,
+        minWidth: 0,
+        width: '100%',
+        maxWidth: '100%',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        p: { xs: 1.5, sm: 2 },
         borderRadius: 3.5,
         bgcolor: 'rgba(255, 255, 255, 0.04)',
         border: '1px solid rgba(255, 255, 255, 0.07)',
@@ -291,6 +296,12 @@ export const SearchView: React.FC<SearchViewProps> = ({
           color: '#ffffff',
           fontSize: '0.92rem',
           mb: 0.3,
+          minWidth: 0,
+          maxWidth: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          display: 'block',
         }}
       >
         {album.title}
@@ -304,6 +315,11 @@ export const SearchView: React.FC<SearchViewProps> = ({
           fontWeight: 500,
           display: 'block',
           mb: 0.8,
+          minWidth: 0,
+          maxWidth: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
         }}
       >
         {album.artist}
@@ -327,109 +343,111 @@ export const SearchView: React.FC<SearchViewProps> = ({
   )
 
   return (
-    <Box sx={{ p: { xs: 2.5, md: 4 }, pb: 16, maxWidth: 960, mx: 'auto', width: '100%', boxSizing: 'border-box' }}>
-      {/* Search Input Bar */}
-      <Box sx={{ mb: 2.5, display: 'flex', gap: 1.2 }}>
-        <TextField
-          fullWidth
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder={t.searchPlaceholder}
-          variant="outlined"
-          size="small"
-          autoFocus
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search sx={{ color: 'rgba(255,255,255,0.5)' }} />
-              </InputAdornment>
-            ),
-            endAdornment: query ? (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={clear} sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                  <Clear fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ) : null,
-          }}
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              bgcolor: 'rgba(255,255,255,0.05)',
+    <Box sx={{ p: { xs: 2, sm: 3, md: 4, lg: 5 }, pb: 16, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
+      {/* Search Input Bar & Controls */}
+      <Box sx={{ maxWidth: 1000, mx: 'auto', mb: 3 }}>
+        <Box sx={{ mb: 2, display: 'flex', gap: 1.2 }}>
+          <TextField
+            fullWidth
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder={t.searchPlaceholder}
+            variant="outlined"
+            size="small"
+            autoFocus
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ color: 'rgba(255,255,255,0.5)' }} />
+                </InputAdornment>
+              ),
+              endAdornment: query ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={clear} sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                    <Clear fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                bgcolor: 'rgba(255,255,255,0.05)',
+                borderRadius: 2.5,
+                fontSize: '0.95rem',
+                '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
+                '&:hover fieldset': { borderColor: 'primary.main' },
+                '&.Mui-focused fieldset': { borderColor: 'primary.main' },
+              },
+            }}
+          />
+
+          <Button
+            variant="contained"
+            onClick={() => doSearch(query)}
+            sx={{
+              bgcolor: 'primary.main',
+              color: '#141218',
+              fontWeight: 700,
               borderRadius: 2.5,
-              fontSize: '0.95rem',
-              '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-              '&:hover fieldset': { borderColor: 'primary.main' },
-              '&.Mui-focused fieldset': { borderColor: 'primary.main' },
-            },
-          }}
-        />
-
-        <Button
-          variant="contained"
-          onClick={() => doSearch(query)}
-          sx={{
-            bgcolor: 'primary.main',
-            color: '#141218',
-            fontWeight: 700,
-            borderRadius: 2.5,
-            px: 3,
-            flexShrink: 0,
-            textTransform: 'none',
-            '&:hover': { bgcolor: 'primary.light' }
-          }}
-        >
-          Найти
-        </Button>
-      </Box>
-
-      {/* Filter Tabs (Все / Треки / Альбомы) when results available */}
-      {searched && (results.length > 0 || albums.length > 0) && (
-        <Box sx={{ display: 'flex', gap: 1, mb: 3.5, flexWrap: 'wrap' }}>
-          <Chip
-            label="Все"
-            onClick={() => setActiveTab('all')}
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              borderRadius: 2,
-              px: 1,
-              bgcolor: activeTab === 'all' ? 'primary.main' : 'rgba(255,255,255,0.07)',
-              color: activeTab === 'all' ? '#141218' : 'rgba(255,255,255,0.75)',
-              cursor: 'pointer',
-              '&:hover': { bgcolor: activeTab === 'all' ? 'primary.light' : 'rgba(255,255,255,0.14)' }
+              px: 3,
+              flexShrink: 0,
+              textTransform: 'none',
+              '&:hover': { bgcolor: 'primary.light' }
             }}
-          />
-          <Chip
-            label={`Треки (${results.length})`}
-            onClick={() => setActiveTab('tracks')}
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              borderRadius: 2,
-              px: 1,
-              bgcolor: activeTab === 'tracks' ? 'primary.main' : 'rgba(255,255,255,0.07)',
-              color: activeTab === 'tracks' ? '#141218' : 'rgba(255,255,255,0.75)',
-              cursor: 'pointer',
-              '&:hover': { bgcolor: activeTab === 'tracks' ? 'primary.light' : 'rgba(255,255,255,0.14)' }
-            }}
-          />
-          <Chip
-            label={`Альбомы (${albums.length})`}
-            onClick={() => setActiveTab('albums')}
-            sx={{
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              borderRadius: 2,
-              px: 1,
-              bgcolor: activeTab === 'albums' ? 'primary.main' : 'rgba(255,255,255,0.07)',
-              color: activeTab === 'albums' ? '#141218' : 'rgba(255,255,255,0.75)',
-              cursor: 'pointer',
-              '&:hover': { bgcolor: activeTab === 'albums' ? 'primary.light' : 'rgba(255,255,255,0.14)' }
-            }}
-          />
+          >
+            Найти
+          </Button>
         </Box>
-      )}
+
+        {/* Filter Tabs (Все / Треки / Альбомы) when results available */}
+        {searched && (results.length > 0 || albums.length > 0) && (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              label="Все"
+              onClick={() => setActiveTab('all')}
+              sx={{
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                borderRadius: 2,
+                px: 1,
+                bgcolor: activeTab === 'all' ? 'primary.main' : 'rgba(255,255,255,0.07)',
+                color: activeTab === 'all' ? '#141218' : 'rgba(255,255,255,0.75)',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: activeTab === 'all' ? 'primary.light' : 'rgba(255,255,255,0.14)' }
+              }}
+            />
+            <Chip
+              label={`Треки (${results.length})`}
+              onClick={() => setActiveTab('tracks')}
+              sx={{
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                borderRadius: 2,
+                px: 1,
+                bgcolor: activeTab === 'tracks' ? 'primary.main' : 'rgba(255,255,255,0.07)',
+                color: activeTab === 'tracks' ? '#141218' : 'rgba(255,255,255,0.75)',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: activeTab === 'tracks' ? 'primary.light' : 'rgba(255,255,255,0.14)' }
+              }}
+            />
+            <Chip
+              label={`Альбомы (${albums.length})`}
+              onClick={() => setActiveTab('albums')}
+              sx={{
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                borderRadius: 2,
+                px: 1,
+                bgcolor: activeTab === 'albums' ? 'primary.main' : 'rgba(255,255,255,0.07)',
+                color: activeTab === 'albums' ? '#141218' : 'rgba(255,255,255,0.75)',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: activeTab === 'albums' ? 'primary.light' : 'rgba(255,255,255,0.14)' }
+              }}
+            />
+          </Box>
+        )}
+      </Box>
 
       {/* Loading Indicator */}
       {loading && (
@@ -519,11 +537,19 @@ export const SearchView: React.FC<SearchViewProps> = ({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-              gap: 2,
+              gridTemplateColumns: {
+                xs: 'repeat(auto-fill, minmax(140px, 1fr))',
+                sm: 'repeat(auto-fill, minmax(165px, 1fr))',
+                md: 'repeat(auto-fill, minmax(185px, 1fr))',
+                lg: 'repeat(auto-fill, minmax(210px, 1fr))',
+              },
+              gap: { xs: 1.5, sm: 2, md: 2.5 },
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
             }}
           >
-            {(activeTab === 'all' ? albums.slice(0, 4) : albums).map(renderAlbumCard)}
+            {(activeTab === 'all' ? albums.slice(0, 8) : albums).map(renderAlbumCard)}
           </Box>
         </Box>
       )}

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { execFile, spawn, ChildProcess } from 'child_process'
 import { promisify } from 'util'
@@ -108,6 +109,15 @@ function createWindow() {
     }
   })
 
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
+    if (!process.env.VITE_DEV_SERVER_URL) {
+      setTimeout(() => {
+        autoUpdater.checkForUpdates().catch((e) => console.log('Auto update check note:', e?.message || e))
+      }, 5000)
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -131,6 +141,66 @@ ipcMain.on('window-maximize', () => {
 })
 ipcMain.on('window-close', () => mainWindow?.close())
 ipcMain.on('window-reload', () => mainWindow?.reload())
+
+// Auto Update Configuration
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
+autoUpdater.on('checking-for-update', () => {
+  mainWindow?.webContents.send('updater-message', { status: 'checking', message: 'Проверка обновлений...' })
+})
+
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('updater-message', {
+    status: 'available',
+    version: info.version,
+    message: `Доступна новая версия v${info.version}! Загрузка...`
+  })
+})
+
+autoUpdater.on('update-not-available', () => {
+  mainWindow?.webContents.send('updater-message', { status: 'not-available', message: 'У вас установлена последняя версия' })
+})
+
+autoUpdater.on('download-progress', (progressObj) => {
+  mainWindow?.webContents.send('updater-message', {
+    status: 'downloading',
+    percent: Math.round(progressObj.percent),
+    bytesPerSecond: progressObj.bytesPerSecond,
+    message: `Загрузка обновления: ${Math.round(progressObj.percent)}%`
+  })
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  mainWindow?.webContents.send('updater-message', {
+    status: 'downloaded',
+    version: info.version,
+    message: `Версия v${info.version} готова к установке`
+  })
+})
+
+autoUpdater.on('error', (err) => {
+  mainWindow?.webContents.send('updater-message', {
+    status: 'error',
+    message: err?.message || 'Ошибка обновления'
+  })
+})
+
+ipcMain.handle('check-for-updates', async () => {
+  if (process.env.VITE_DEV_SERVER_URL) {
+    return { success: true, status: 'dev', message: 'Автообновление доступно в собранном приложении' }
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    return { success: true, updateInfo: result?.updateInfo }
+  } catch (err: any) {
+    return { success: false, error: err?.message }
+  }
+})
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall()
+})
 
 // Performance In-Memory Caches
 const searchCache = new Map<string, { data: any; ts: number }>()

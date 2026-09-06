@@ -336,7 +336,7 @@ function PlayerApp() {
             </Box>
           )}
 
-          <Box sx={{ height: '100%', minHeight: 0, overflowY: 'auto', display: view === 'search' ? 'block' : 'none' }}>
+          <Box sx={{ height: '100%', minHeight: 0, width: '100%', minWidth: 0, overflowY: 'auto', overflowX: 'hidden', display: view === 'search' ? 'block' : 'none' }}>
             <SearchView
               onPlay={handlePlay}
               onAddToQueue={handleAddToQueue}

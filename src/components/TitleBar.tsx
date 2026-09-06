@@ -1,7 +1,7 @@
-import React from 'react'
-import { Box, IconButton, Tooltip, Typography } from '@mui/material'
+import React, { useState, useEffect } from 'react'
+import { Box, IconButton, Tooltip, Typography, Button } from '@mui/material'
 import {
-  MinimizeRounded, CropSquare, Close, GraphicEq, Menu as MenuIcon
+  MinimizeRounded, CropSquare, Close, GraphicEq, Menu as MenuIcon, SystemUpdate
 } from '@mui/icons-material'
 
 interface TitleBarProps {
@@ -9,6 +9,20 @@ interface TitleBarProps {
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
+  const [updateState, setUpdateState] = useState<{
+    status: string
+    version?: string
+    percent?: number
+    message?: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!window.melodix?.onUpdateMessage) return
+    const unsub = window.melodix.onUpdateMessage((data) => {
+      setUpdateState(data)
+    })
+    return () => unsub?.()
+  }, [])
   return (
     <Box
       sx={{
@@ -90,6 +104,70 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
           </Typography>
         </Box>
       </Box>
+
+      {/* Center/Right: Update status indicator */}
+      {updateState && (updateState.status === 'available' || updateState.status === 'downloading' || updateState.status === 'downloaded') && (
+        <Box sx={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto', display: 'flex', alignItems: 'center' }}>
+          {updateState.status === 'downloaded' ? (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<SystemUpdate sx={{ fontSize: 16 }} />}
+              onClick={() => window.melodix?.installUpdate?.()}
+              sx={{
+                bgcolor: 'primary.main',
+                color: '#141218',
+                fontWeight: 700,
+                fontSize: '0.72rem',
+                py: 0.2,
+                px: 1.5,
+                borderRadius: 2,
+                textTransform: 'none',
+                height: 26,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                '&:hover': { bgcolor: 'primary.light' },
+              }}
+            >
+              Перезапустить и обновить {updateState.version ? `v${updateState.version}` : ''}
+            </Button>
+          ) : updateState.status === 'downloading' ? (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.8,
+                bgcolor: 'rgba(208, 188, 255, 0.15)',
+                color: 'primary.light',
+                px: 1.2,
+                py: 0.2,
+                borderRadius: 2,
+                fontSize: '0.72rem',
+                fontWeight: 600,
+              }}
+            >
+              <SystemUpdate sx={{ fontSize: 15 }} />
+              Загрузка {updateState.version ? `v${updateState.version} ` : ''}({updateState.percent || 0}%)
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.8,
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                px: 1.2,
+                py: 0.2,
+                borderRadius: 2,
+                fontSize: '0.72rem',
+                fontWeight: 600,
+              }}
+            >
+              Доступно обновление {updateState.version ? `v${updateState.version}` : ''}...
+            </Box>
+          )}
+        </Box>
+      )}
 
       {/* Right: Window Controls */}
       <Box display="flex" gap={0.5} sx={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' }}>
