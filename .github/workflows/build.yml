@@ -201,3 +201,74 @@ jobs:
           generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  build-ios:
+    name: Build (Melodix-iOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Web Renderer
+        run: npx vite build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Build iOS App & Package IPA
+        run: |
+          mkdir -p dist ios/build
+          
+          # Resolve SPM packages
+          xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj
+
+          # Build Release for generic iOS devices without code signing
+          xcodebuild build \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ios/build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual
+
+          # Package into .ipa (Payload/App.app)
+          APP_PATH="ios/build/DerivedData/Build/Products/Release-iphoneos/App.app"
+          mkdir -p ios/build/Payload
+          cp -R "$APP_PATH" ios/build/Payload/
+          cd ios/build
+          zip -r -9 ../../dist/Melodix-1.0.0-beta.ipa Payload
+          cd ../..
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Melodix-iOS
+          path: dist/Melodix-*.ipa
+
+      - name: Upload release assets (iOS)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          artifacts: "dist/Melodix-*.ipa"
+          allowUpdates: true
+          replacesArtifacts: true
+          updateOnlyUnreleased: false
+          omitBodyDuringUpdate: true
+          omitNameDuringUpdate: true
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
+          generateReleaseNotes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+
