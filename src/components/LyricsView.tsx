@@ -565,7 +565,10 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   <Box
                     key={i}
                     ref={isActive ? activeLineRef : null}
-                    onClick={() => onSeekToTime(line.time)}
+                    onClick={(e) => {
+                      onSeekToTime(line.time)
+                      e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }}
                     sx={{
                       py: 1.6,
                       px: 2,
@@ -616,7 +619,10 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                 <Box
                   key={i}
                   ref={isActive ? activeLineRef : null}
-                  onClick={() => onSeekToTime(line.time)}
+                  onClick={(e) => {
+                    onSeekToTime(line.time)
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}
                   sx={{
                     py: 1,
                     px: 1.8,

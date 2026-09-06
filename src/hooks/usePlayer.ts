@@ -124,6 +124,7 @@ export function usePlayer() {
   const hasScrobbledRef = useRef(false)
   const hasPreloadedNextRef = useRef(false)
   const trackStartTimeRef = useRef(0)
+  const seekingTargetRef = useRef<{ time: number; until: number } | null>(null)
 
   // Lightweight RAF loop for active lyric line and next track preloading
   const tick = useCallback(() => {
@@ -131,8 +132,18 @@ export function usePlayer() {
     if (!h) return
 
     if (h.playing()) {
-      const t = h.seek()
+      let t = h.seek()
       if (typeof t === 'number' && isFinite(t)) {
+        // If recent seek in progress, respect target until audio actually catches up
+        if (seekingTargetRef.current) {
+          const { time: targetTime, until } = seekingTargetRef.current
+          if (Date.now() < until && Math.abs(t - targetTime) > 1.5) {
+            t = targetTime
+          } else {
+            seekingTargetRef.current = null
+          }
+        }
+
         setLyrics(l => {
           if (!l.lines.length) return l
           const newLine = getActiveLine(l.lines, t)
@@ -331,16 +342,69 @@ export function usePlayer() {
   const seek = useCallback((value: number) => {
     const h = howlRef.current
     if (!h) return
-    const d = h.duration()
+    const d = h.duration() || stateRef.current.currentTrack?.duration || 0
     if (!d) return
-    h.seek(value * d)
+    const targetSeconds = value * d
+
+    try {
+      h.seek(targetSeconds)
+    } catch (e) {
+      console.error('seek error:', e)
+    }
+
+    seekingTargetRef.current = {
+      time: targetSeconds,
+      until: Date.now() + 2500,
+    }
+
+    setLyrics(l => {
+      if (!l.lines.length) return l
+      const newLine = getActiveLine(l.lines, targetSeconds)
+      return { ...l, activeLine: newLine }
+    })
+
+    setState(s => ({
+      ...s,
+      currentTime: targetSeconds,
+      progress: value * 100,
+    }))
   }, [])
 
   const seekToTime = useCallback((seconds: number) => {
     const h = howlRef.current
     if (!h) return
-    h.seek(seconds)
-  }, [])
+
+    try {
+      h.seek(seconds)
+      if (!h.playing()) {
+        h.play()
+        setState(s => ({ ...s, isPlaying: true }))
+        if (!rafRef.current) {
+          rafRef.current = requestAnimationFrame(tick)
+        }
+      }
+    } catch (e) {
+      console.error('seekToTime error:', e)
+    }
+
+    seekingTargetRef.current = {
+      time: seconds,
+      until: Date.now() + 2500,
+    }
+
+    setLyrics(l => {
+      if (!l.lines.length) return l
+      const newLine = getActiveLine(l.lines, seconds)
+      return { ...l, activeLine: newLine }
+    })
+
+    const d = h.duration() || stateRef.current.currentTrack?.duration || 0
+    setState(s => ({
+      ...s,
+      currentTime: seconds,
+      progress: d > 0 ? (seconds / d) * 100 : 0,
+    }))
+  }, [tick])
 
   const setVolume = (v: number) => {
     howlRef.current?.volume(v)
