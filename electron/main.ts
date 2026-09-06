@@ -128,7 +128,12 @@ function createWindow() {
     mainWindow?.show()
     if (!process.env.VITE_DEV_SERVER_URL) {
       setTimeout(() => {
-        autoUpdater.checkForUpdates().catch((e) => console.log('Auto update check note:', e?.message || e))
+        // isUpdaterAvailable is defined after createWindow() in the file,
+        // but we check the file existence inline here too for safety
+        const updateYml = join(process.resourcesPath, 'app-update.yml')
+        if (fs.existsSync(updateYml)) {
+          autoUpdater.checkForUpdates().catch((e) => console.log('Auto update check note:', e?.message || e))
+        }
       }, 5000)
     }
   })
@@ -172,52 +177,66 @@ ipcMain.on('window-close', () => mainWindow?.close())
 ipcMain.on('window-reload', () => mainWindow?.reload())
 
 // Auto Update Configuration
-autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = true
+// Portable / ZIP builds on Windows don't include app-update.yml — skip updater for those
+const appUpdateYml = join(process.resourcesPath, 'app-update.yml')
+const isUpdaterAvailable = !process.env.VITE_DEV_SERVER_URL && fs.existsSync(appUpdateYml)
 
-autoUpdater.on('checking-for-update', () => {
-  mainWindow?.webContents.send('updater-message', { status: 'checking', message: 'Проверка обновлений...' })
-})
+if (isUpdaterAvailable) {
+  try {
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
 
-autoUpdater.on('update-available', (info) => {
-  mainWindow?.webContents.send('updater-message', {
-    status: 'available',
-    version: info.version,
-    message: `Доступна новая версия v${info.version}! Загрузка...`
-  })
-})
+    autoUpdater.on('checking-for-update', () => {
+      mainWindow?.webContents.send('updater-message', { status: 'checking', message: 'Проверка обновлений...' })
+    })
 
-autoUpdater.on('update-not-available', () => {
-  mainWindow?.webContents.send('updater-message', { status: 'not-available', message: 'У вас установлена последняя версия' })
-})
+    autoUpdater.on('update-available', (info) => {
+      mainWindow?.webContents.send('updater-message', {
+        status: 'available',
+        version: info.version,
+        message: `Доступна новая версия v${info.version}! Загрузка...`
+      })
+    })
 
-autoUpdater.on('download-progress', (progressObj) => {
-  mainWindow?.webContents.send('updater-message', {
-    status: 'downloading',
-    percent: Math.round(progressObj.percent),
-    bytesPerSecond: progressObj.bytesPerSecond,
-    message: `Загрузка обновления: ${Math.round(progressObj.percent)}%`
-  })
-})
+    autoUpdater.on('update-not-available', () => {
+      mainWindow?.webContents.send('updater-message', { status: 'not-available', message: 'У вас установлена последняя версия' })
+    })
 
-autoUpdater.on('update-downloaded', (info) => {
-  mainWindow?.webContents.send('updater-message', {
-    status: 'downloaded',
-    version: info.version,
-    message: `Версия v${info.version} готова к установке`
-  })
-})
+    autoUpdater.on('download-progress', (progressObj) => {
+      mainWindow?.webContents.send('updater-message', {
+        status: 'downloading',
+        percent: Math.round(progressObj.percent),
+        bytesPerSecond: progressObj.bytesPerSecond,
+        message: `Загрузка обновления: ${Math.round(progressObj.percent)}%`
+      })
+    })
 
-autoUpdater.on('error', (err) => {
-  mainWindow?.webContents.send('updater-message', {
-    status: 'error',
-    message: err?.message || 'Ошибка обновления'
-  })
-})
+    autoUpdater.on('update-downloaded', (info) => {
+      mainWindow?.webContents.send('updater-message', {
+        status: 'downloaded',
+        version: info.version,
+        message: `Версия v${info.version} готова к установке`
+      })
+    })
+
+    autoUpdater.on('error', (err) => {
+      console.log('AutoUpdater error (non-fatal):', err?.message || err)
+      mainWindow?.webContents.send('updater-message', {
+        status: 'error',
+        message: err?.message || 'Ошибка обновления'
+      })
+    })
+  } catch (err) {
+    console.log('AutoUpdater setup error (non-fatal):', err)
+  }
+}
 
 ipcMain.handle('check-for-updates', async () => {
   if (process.env.VITE_DEV_SERVER_URL) {
     return { success: true, status: 'dev', message: 'Автообновление доступно в собранном приложении' }
+  }
+  if (!isUpdaterAvailable) {
+    return { success: true, status: 'portable', message: 'Portable-версия: проверьте обновления на GitHub вручную' }
   }
   try {
     const result = await autoUpdater.checkForUpdates()
@@ -228,7 +247,8 @@ ipcMain.handle('check-for-updates', async () => {
 })
 
 ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall()
+  if (!isUpdaterAvailable) return
+  try { autoUpdater.quitAndInstall() } catch {}
 })
 
 // System Accent Color (Windows / macOS)
