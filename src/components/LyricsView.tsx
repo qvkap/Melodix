@@ -9,7 +9,7 @@ import { Howl } from 'howler'
 import { LrcLine, PlayerState } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { ExplicitBadge } from './ExplicitBadge'
-import { detectExplicit } from '../utils'
+import { detectExplicit, formatTime } from '../utils'
 
 interface LyricsViewProps {
   lines: LrcLine[]
