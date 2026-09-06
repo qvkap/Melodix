@@ -54,4 +54,17 @@ contextBridge.exposeInMainWorld('melodix', {
   scanLocalFolder: (folderPath: string) => ipcRenderer.invoke('scan-local-folder', folderPath),
   parseLocalFile: (filePath: string) => ipcRenderer.invoke('parse-local-file', filePath),
   showItemInFolder: (filePath: string) => ipcRenderer.send('show-item-in-folder', filePath),
+
+  // Proxy & yt-dlp
+  getProxyConfig: () => ipcRenderer.invoke('get-proxy-config'),
+  setProxyConfig: (cfg: any) => ipcRenderer.invoke('set-proxy-config', cfg),
+  testProxy: (proxyUrl?: string) => ipcRenderer.invoke('test-proxy', proxyUrl),
+  getYtdlpInfo: () => ipcRenderer.invoke('get-ytdlp-info'),
+  updateYtdlp: () => ipcRenderer.invoke('update-ytdlp'),
+  setYtdlpAutoUpdate: (enabled: boolean) => ipcRenderer.invoke('set-ytdlp-auto-update', enabled),
+  onYtdlpStatus: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('ytdlp-status', handler)
+    return () => ipcRenderer.removeListener('ytdlp-status', handler)
+  },
 })

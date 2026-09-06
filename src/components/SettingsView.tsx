@@ -2,15 +2,41 @@ import React, { useState, useEffect } from 'react'
 import {
   Box, Typography, Switch, Slider, Chip, TextField,
   Button, Paper, Accordion, AccordionSummary, AccordionDetails,
-  Select, MenuItem, FormControl, Tooltip
+  Select, MenuItem, FormControl, Tooltip, InputAdornment
 } from '@mui/material'
 import {
   Add, Delete, RestartAlt, ExpandMore, Language, BlurOn,
   SettingsApplications, Tune, CloudQueue, Check, CheckCircle, ErrorOutline,
-  SystemUpdateAlt, Refresh, Download, Palette, Wallpaper, ColorLens
+  SystemUpdateAlt, Refresh, Download, Palette, Wallpaper, ColorLens,
+  VpnLock, Terminal, Speed
 } from '@mui/icons-material'
 import { useSettings } from '../contexts/SettingsContext'
-import { BlurMaterial, AppLanguage } from '../types'
+import { BlurMaterial, AppLanguage, ProxyConfig, YtdlpInfo } from '../types'
+
+const PROXY_PRESETS = [
+  { name: 'Clash / Mihomo (7890)', proto: 'http' as const, host: '127.0.0.1', port: '7890' },
+  { name: 'V2Ray / Xray (10808)', proto: 'socks5' as const, host: '127.0.0.1', port: '10808' },
+  { name: 'Shadowsocks (1080)', proto: 'socks5' as const, host: '127.0.0.1', port: '1080' },
+  { name: 'Tor (9050)', proto: 'socks5' as const, host: '127.0.0.1', port: '9050' },
+]
+
+function buildProxyUrlClient(cfg: ProxyConfig): string {
+  if (cfg.useCustomUrl && cfg.customUrl?.trim()) {
+    let u = cfg.customUrl.trim()
+    if (!u.includes('://')) u = `http://${u}`
+    return u
+  }
+  if (!cfg.host?.trim() || !cfg.port) return ''
+  const proto = cfg.protocol || 'http'
+  const host = cfg.host.trim()
+  const port = String(cfg.port).trim()
+  if (cfg.username?.trim()) {
+    const user = encodeURIComponent(cfg.username.trim())
+    const pass = cfg.password ? encodeURIComponent(cfg.password) : ''
+    return `${proto}://${user}:${pass}@${host}:${port}`
+  }
+  return `${proto}://${host}:${port}`
+}
 
 const PRESET_COLORS = [
   { name: 'Лаванда (Melodix)', hex: '#d0bcff' },
@@ -35,6 +61,93 @@ export const SettingsView: React.FC = () => {
     version?: string
     percent?: number
   } | null>(null)
+
+  // Proxy state
+  const [proxyConfig, setProxyConfig] = useState<ProxyConfig>({
+    enabled: false,
+    protocol: 'http',
+    host: '127.0.0.1',
+    port: '7890',
+    applyToElectron: true,
+  })
+  const [proxyTesting, setProxyTesting] = useState(false)
+  const [proxyTestResult, setProxyTestResult] = useState<{ success: boolean; latencyMs?: number; error?: string } | null>(null)
+  const [proxySavedNotice, setProxySavedNotice] = useState(false)
+
+  // yt-dlp state
+  const [ytdlpInfo, setYtdlpInfo] = useState<YtdlpInfo | null>(null)
+  const [ytdlpChecking, setYtdlpChecking] = useState(false)
+
+  useEffect(() => {
+    if (window.melodix?.getProxyConfig) {
+      window.melodix.getProxyConfig().then(cfg => {
+        if (cfg) setProxyConfig(cfg)
+      })
+    }
+    if (window.melodix?.getYtdlpInfo) {
+      window.melodix.getYtdlpInfo().then(info => {
+        if (info) setYtdlpInfo(info)
+      })
+    }
+    if (window.melodix?.onYtdlpStatus) {
+      const unsub = window.melodix.onYtdlpStatus((info) => {
+        setYtdlpInfo(info)
+        if (info.status !== 'checking' && info.status !== 'updating') {
+          setYtdlpChecking(false)
+        }
+      })
+      return () => unsub?.()
+    }
+  }, [])
+
+  const handleSaveProxy = async (newCfg: ProxyConfig) => {
+    setProxyConfig(newCfg)
+    setProxyTestResult(null)
+    if (window.melodix?.setProxyConfig) {
+      await window.melodix.setProxyConfig(newCfg)
+      setProxySavedNotice(true)
+      setTimeout(() => setProxySavedNotice(false), 2500)
+    }
+  }
+
+  const handleTestProxy = async () => {
+    setProxyTesting(true)
+    setProxyTestResult(null)
+    try {
+      const urlToTest = buildProxyUrlClient(proxyConfig)
+      if (window.melodix?.testProxy) {
+        const res = await window.melodix.testProxy(urlToTest)
+        setProxyTestResult(res)
+      }
+    } catch (e: any) {
+      setProxyTestResult({ success: false, error: e?.message || 'Ошибка тестирования' })
+    } finally {
+      setProxyTesting(false)
+    }
+  }
+
+  const handleUpdateYtdlp = async () => {
+    setYtdlpChecking(true)
+    try {
+      if (window.melodix?.updateYtdlp) {
+        const res = await window.melodix.updateYtdlp()
+        if (res?.currentVersion && ytdlpInfo) {
+          setYtdlpInfo(prev => prev ? { ...prev, currentVersion: res.currentVersion || prev.currentVersion } : null)
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setYtdlpChecking(false)
+    }
+  }
+
+  const handleToggleYtdlpAutoUpdate = async (enabled: boolean) => {
+    if (window.melodix?.setYtdlpAutoUpdate) {
+      await window.melodix.setYtdlpAutoUpdate(enabled)
+      setYtdlpInfo(prev => prev ? { ...prev, autoUpdate: enabled } : null)
+    }
+  }
 
   useEffect(() => {
     if (!window.melodix?.onUpdateMessage) return
@@ -512,7 +625,7 @@ export const SettingsView: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
             <Box>
               <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700 }}>
-                Melodix Beta 0.2
+                Melodix Beta 0.3
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
                 {updateStatus?.message || 'Автоматическая проверка обновлений при запуске'}
@@ -581,12 +694,12 @@ export const SettingsView: React.FC = () => {
         </Box>
       </SectionCard>
 
-      {/* 6. Advanced Settings (Title Cleanup) - Borderless Accordion */}
+      {/* 6. Advanced Settings (Proxy Server, yt-dlp Auto-Updater, Title Cleanup) - Borderless Accordion */}
       <Accordion
         elevation={0}
         sx={{
           bgcolor: 'rgba(255, 255, 255, 0.04)',
-          borderRadius: '14px !important',
+          borderRadius: '16px !important',
           border: 'none',
           overflow: 'hidden',
           '&:before': { display: 'none' },
@@ -594,74 +707,470 @@ export const SettingsView: React.FC = () => {
       >
         <AccordionSummary
           expandIcon={<ExpandMore sx={{ color: '#ffffff' }} />}
-          sx={{ px: 2.5, py: 0.5 }}
+          sx={{ px: 2.5, py: 1 }}
         >
-          <Box display="flex" alignItems="center" gap={1.2}>
-            <SettingsApplications sx={{ color: 'primary.light', fontSize: 20 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#ffffff' }}>
-              {t.advancedSettings}
-            </Typography>
+          <Box display="flex" alignItems="center" justifyContent="space-between" width="100%" pr={1.5}>
+            <Box display="flex" alignItems="center" gap={1.2}>
+              <SettingsApplications sx={{ color: 'primary.light', fontSize: 22 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#ffffff' }}>
+                  {t.advancedSettings}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block' }}>
+                  Прокси-сервер, движок yt-dlp и фильтрация названий
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box display="flex" alignItems="center" gap={1}>
+              {proxyConfig.enabled && (
+                <Chip
+                  size="small"
+                  label={`Прокси: ${proxyConfig.useCustomUrl ? 'URL' : `${proxyConfig.protocol.toUpperCase()}:${proxyConfig.port}`}`}
+                  sx={{
+                    bgcolor: 'rgba(105, 240, 174, 0.16)',
+                    color: '#69f0ae',
+                    fontWeight: 700,
+                    fontSize: '0.72rem',
+                    height: 22,
+                  }}
+                />
+              )}
+              {ytdlpInfo?.currentVersion && (
+                <Chip
+                  size="small"
+                  label={`yt-dlp v${ytdlpInfo.currentVersion}`}
+                  sx={{
+                    bgcolor: 'rgba(208, 188, 255, 0.12)',
+                    color: 'primary.light',
+                    fontWeight: 600,
+                    fontSize: '0.72rem',
+                    height: 22,
+                  }}
+                />
+              )}
+            </Box>
           </Box>
         </AccordionSummary>
-        <AccordionDetails sx={{ px: 2.5, pb: 2.5, pt: 0.5 }}>
-          <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 600, mb: 0.5 }}>
-            {t.titleCleanup}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', mb: 2 }}>
-            {t.titleCleanupDesc}
-          </Typography>
+        <AccordionDetails sx={{ px: 2.5, pb: 3, pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
 
-          <Box display="flex" gap={1} sx={{ mb: 2 }}>
-            <TextField
-              size="small"
-              value={newWord}
-              onChange={e => setNewWord(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addWord()}
-              placeholder='например: "Official Video"'
-              sx={{ flex: 1 }}
-            />
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={addWord}
-              sx={{
-                bgcolor: 'primary.main',
-                color: '#141218',
-                borderRadius: 2,
-                fontWeight: 700,
-                textTransform: 'none'
-              }}
-            >
-              {t.addWord}
-            </Button>
+          {/* ─── Subsection A: Proxy Server ──────────────────────────────── */}
+          <Box sx={{ p: 2.2, bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: 3, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+            <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Box display="flex" alignItems="center" gap={1.2}>
+                <VpnLock sx={{ color: proxyConfig.enabled ? 'primary.main' : 'rgba(255,255,255,0.5)', fontSize: 22 }} />
+                <Box>
+                  <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700 }}>
+                    {t.proxyTitle}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'block' }}>
+                    {t.proxyDesc}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Switch
+                checked={proxyConfig.enabled}
+                onChange={e => handleSaveProxy({ ...proxyConfig, enabled: e.target.checked })}
+              />
+            </Box>
+
+            {proxyConfig.enabled ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2, pt: 2, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                {/* Presets */}
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, display: 'block', mb: 1 }}>
+                    {t.proxyPresets}
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={1}>
+                    {PROXY_PRESETS.map(preset => (
+                      <Chip
+                        key={preset.name}
+                        label={preset.name}
+                        size="small"
+                        clickable
+                        onClick={() => {
+                          const updated: ProxyConfig = {
+                            ...proxyConfig,
+                            protocol: preset.proto,
+                            host: preset.host,
+                            port: preset.port,
+                            useCustomUrl: false,
+                          }
+                          handleSaveProxy(updated)
+                        }}
+                        sx={{
+                          bgcolor: !proxyConfig.useCustomUrl && proxyConfig.protocol === preset.proto && proxyConfig.port === preset.port
+                            ? 'rgba(208, 188, 255, 0.22)'
+                            : 'rgba(255,255,255,0.06)',
+                          color: !proxyConfig.useCustomUrl && proxyConfig.protocol === preset.proto && proxyConfig.port === preset.port
+                            ? 'primary.light'
+                            : '#ffffff',
+                          fontWeight: 600,
+                          borderRadius: 2,
+                          border: !proxyConfig.useCustomUrl && proxyConfig.protocol === preset.proto && proxyConfig.port === preset.port
+                            ? '1px solid #d0bcff'
+                            : '1px solid transparent',
+                        }}
+                      />
+                    ))}
+                    <Chip
+                      label={t.proxyUseCustomUrl}
+                      size="small"
+                      clickable
+                      onClick={() => handleSaveProxy({ ...proxyConfig, useCustomUrl: !proxyConfig.useCustomUrl })}
+                      sx={{
+                        bgcolor: proxyConfig.useCustomUrl ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255,255,255,0.06)',
+                        color: proxyConfig.useCustomUrl ? 'primary.light' : '#ffffff',
+                        fontWeight: 600,
+                        borderRadius: 2,
+                        border: proxyConfig.useCustomUrl ? '1px solid #d0bcff' : '1px solid transparent',
+                      }}
+                    />
+                  </Box>
+                </Box>
+
+                {/* Structured vs Custom URL inputs */}
+                {!proxyConfig.useCustomUrl ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '130px 1fr 110px' }, gap: 1.5 }}>
+                    <FormControl size="small" fullWidth>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mb: 0.5 }}>
+                        {t.proxyProtocol}
+                      </Typography>
+                      <Select
+                        value={proxyConfig.protocol}
+                        onChange={e => handleSaveProxy({ ...proxyConfig, protocol: e.target.value as any })}
+                        sx={{
+                          bgcolor: 'rgba(255,255,255,0.06)',
+                          color: '#ffffff',
+                          borderRadius: 2,
+                          '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' },
+                        }}
+                      >
+                        <MenuItem value="http">HTTP</MenuItem>
+                        <MenuItem value="https">HTTPS</MenuItem>
+                        <MenuItem value="socks5">SOCKS5</MenuItem>
+                        <MenuItem value="socks4">SOCKS4</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mb: 0.5, display: 'block' }}>
+                        {t.proxyHost}
+                      </Typography>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={proxyConfig.host}
+                        onChange={e => setProxyConfig({ ...proxyConfig, host: e.target.value })}
+                        onBlur={() => handleSaveProxy(proxyConfig)}
+                        placeholder="127.0.0.1 или proxy.example.com"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: 'rgba(255,255,255,0.06)',
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mb: 0.5, display: 'block' }}>
+                        {t.proxyPort}
+                      </Typography>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={proxyConfig.port}
+                        onChange={e => setProxyConfig({ ...proxyConfig, port: e.target.value })}
+                        onBlur={() => handleSaveProxy(proxyConfig)}
+                        placeholder="7890"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: 'rgba(255,255,255,0.06)',
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mb: 0.5, display: 'block' }}>
+                      {t.proxyCustomUrl}
+                    </Typography>
+                    <TextField
+                      size="small"
+                      fullWidth
+                      value={proxyConfig.customUrl || ''}
+                      onChange={e => setProxyConfig({ ...proxyConfig, customUrl: e.target.value })}
+                      onBlur={() => handleSaveProxy(proxyConfig)}
+                      placeholder="socks5://127.0.0.1:10808 или http://user:pass@host:port"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          bgcolor: 'rgba(255,255,255,0.06)',
+                          borderRadius: 2,
+                          fontFamily: 'monospace',
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+
+                {/* Optional Authentication */}
+                {!proxyConfig.useCustomUrl && (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                    <TextField
+                      size="small"
+                      label={t.proxyUsername}
+                      value={proxyConfig.username || ''}
+                      onChange={e => setProxyConfig({ ...proxyConfig, username: e.target.value })}
+                      onBlur={() => handleSaveProxy(proxyConfig)}
+                      sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'rgba(255,255,255,0.06)', borderRadius: 2 } }}
+                    />
+                    <TextField
+                      size="small"
+                      label={t.proxyPassword}
+                      type="password"
+                      value={proxyConfig.password || ''}
+                      onChange={e => setProxyConfig({ ...proxyConfig, password: e.target.value })}
+                      onBlur={() => handleSaveProxy(proxyConfig)}
+                      sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'rgba(255,255,255,0.06)', borderRadius: 2 } }}
+                    />
+                  </Box>
+                )}
+
+                {/* Route entire electron traffic switch */}
+                <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ pt: 1 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                      {t.proxyApplyElectron}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block' }}>
+                      Маршрутизирует не только yt-dlp, но и обложки альбомов и HTML5 аудиопотоки
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={proxyConfig.applyToElectron !== false}
+                    onChange={e => handleSaveProxy({ ...proxyConfig, applyToElectron: e.target.checked })}
+                  />
+                </Box>
+
+                {/* Actions & Test Status */}
+                <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ pt: 1, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <Box display="flex" alignItems="center" gap={1.5}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Speed sx={{ animation: proxyTesting ? 'spin 1s linear infinite' : 'none' }} />}
+                      onClick={handleTestProxy}
+                      disabled={proxyTesting}
+                      sx={{
+                        color: '#ffffff',
+                        borderColor: 'rgba(255,255,255,0.2)',
+                        textTransform: 'none',
+                        borderRadius: 2,
+                        '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(208, 188, 255, 0.08)' },
+                      }}
+                    >
+                      {proxyTesting ? t.proxyTesting : t.proxyTest}
+                    </Button>
+
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={() => handleSaveProxy(proxyConfig)}
+                      sx={{
+                        bgcolor: 'primary.main',
+                        color: '#141218',
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        borderRadius: 2,
+                      }}
+                    >
+                      Сохранить
+                    </Button>
+
+                    {proxySavedNotice && (
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <CheckCircle sx={{ color: '#4caf50', fontSize: 16 }} />
+                        <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 600 }}>
+                          Сохранено
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Test Result Indicator */}
+                  {proxyTestResult && (
+                    <Box display="flex" alignItems="center" gap={0.8}>
+                      {proxyTestResult.success ? (
+                        <>
+                          <CheckCircle sx={{ color: '#4caf50', fontSize: 18 }} />
+                          <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 700 }}>
+                            {t.proxyTestSuccess} ({proxyTestResult.latencyMs} мс)
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <ErrorOutline sx={{ color: '#ff8a80', fontSize: 18 }} />
+                          <Typography variant="caption" sx={{ color: '#ff8a80', fontWeight: 600 }}>
+                            {proxyTestResult.error || t.proxyTestFailed}
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            ) : (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }}>
+                  Прямое сетевое подключение. Включите прокси, если YouTube или SoundCloud замедлены провайдером.
+                </Typography>
+              </Box>
+            )}
           </Box>
 
-          <Box display="flex" flexWrap="wrap" gap={0.8} sx={{ mb: 2 }}>
-            {settings.exclusionWords.map(word => (
+          {/* ─── Subsection B: yt-dlp Background Auto-Updater ────────────── */}
+          <Box sx={{ p: 2.2, bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: 3, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+            <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Box display="flex" alignItems="center" gap={1.2}>
+                <Terminal sx={{ color: 'primary.main', fontSize: 22 }} />
+                <Box>
+                  <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700 }}>
+                    {t.ytdlpTitle}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'block' }}>
+                    {t.ytdlpDesc}
+                  </Typography>
+                </Box>
+              </Box>
+
               <Chip
-                key={word}
-                label={word}
-                onDelete={() => removeWord(word)}
-                deleteIcon={<Delete sx={{ fontSize: '14px !important' }} />}
                 size="small"
+                label={ytdlpInfo?.currentVersion ? `v${ytdlpInfo.currentVersion}` : 'yt-dlp'}
                 sx={{
-                  bgcolor: 'rgba(208,188,255,0.12)',
-                  color: '#ffffff',
-                  borderRadius: 1.5,
-                  '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.6)' },
+                  bgcolor: 'rgba(208, 188, 255, 0.16)',
+                  color: 'primary.light',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
                 }}
               />
-            ))}
+            </Box>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              {/* Toggle automatic background updates */}
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+                    {t.ytdlpAutoUpdate}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block' }}>
+                    {t.ytdlpAutoUpdateDesc}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={ytdlpInfo?.autoUpdate !== false}
+                  onChange={e => handleToggleYtdlpAutoUpdate(e.target.checked)}
+                />
+              </Box>
+
+              {/* Status details & update button */}
+              <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ pt: 0.5 }}>
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', display: 'block' }}>
+                    {ytdlpInfo?.statusText || (ytdlpInfo?.currentVersion ? `Установлен: ${ytdlpInfo.currentVersion}` : 'Готов')}
+                  </Typography>
+                  {ytdlpInfo?.path && (
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.68rem', fontFamily: 'monospace', display: 'block', maxWidth: 460, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ytdlpInfo.path}
+                    </Typography>
+                  )}
+                </Box>
+
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<Refresh sx={{ animation: ytdlpChecking ? 'spin 1s linear infinite' : 'none' }} />}
+                  onClick={handleUpdateYtdlp}
+                  disabled={ytdlpChecking || ytdlpInfo?.isUpdating}
+                  sx={{
+                    color: '#ffffff',
+                    borderColor: 'rgba(255,255,255,0.2)',
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(208, 188, 255, 0.08)' },
+                  }}
+                >
+                  {ytdlpChecking || ytdlpInfo?.isUpdating ? t.ytdlpUpdating : t.ytdlpCheckNow}
+                </Button>
+              </Box>
+            </Box>
           </Box>
 
-          <Button
-            size="small"
-            startIcon={<RestartAlt />}
-            onClick={resetExclusions}
-            sx={{ color: 'rgba(255,255,255,0.5)', textTransform: 'none' }}
-          >
-            {t.resetDefaults}
-          </Button>
+          {/* ─── Subsection C: Title Cleanup (Existing) ──────────────────── */}
+          <Box sx={{ p: 2.2, bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: 3, border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+            <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700, mb: 0.5 }}>
+              {t.titleCleanup}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', mb: 2 }}>
+              {t.titleCleanupDesc}
+            </Typography>
+
+            <Box display="flex" gap={1} sx={{ mb: 2 }}>
+              <TextField
+                size="small"
+                value={newWord}
+                onChange={e => setNewWord(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addWord()}
+                placeholder='например: "Official Video"'
+                sx={{ flex: 1 }}
+              />
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={addWord}
+                sx={{
+                  bgcolor: 'primary.main',
+                  color: '#141218',
+                  borderRadius: 2,
+                  fontWeight: 700,
+                  textTransform: 'none'
+                }}
+              >
+                {t.addWord}
+              </Button>
+            </Box>
+
+            <Box display="flex" flexWrap="wrap" gap={0.8} sx={{ mb: 2 }}>
+              {settings.exclusionWords.map(word => (
+                <Chip
+                  key={word}
+                  label={word}
+                  onDelete={() => removeWord(word)}
+                  deleteIcon={<Delete sx={{ fontSize: '14px !important' }} />}
+                  size="small"
+                  sx={{
+                    bgcolor: 'rgba(208,188,255,0.12)',
+                    color: '#ffffff',
+                    borderRadius: 1.5,
+                    '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.6)' },
+                  }}
+                />
+              ))}
+            </Box>
+
+            <Button
+              size="small"
+              startIcon={<RestartAlt />}
+              onClick={resetExclusions}
+              sx={{ color: 'rgba(255,255,255,0.5)', textTransform: 'none' }}
+            >
+              {t.resetDefaults}
+            </Button>
+          </Box>
         </AccordionDetails>
       </Accordion>
     </Box>

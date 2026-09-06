@@ -55,6 +55,29 @@ export interface Album {
 export type BlurMaterial = 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'none'
 export type AppLanguage = 'ru' | 'en'
 
+export interface ProxyConfig {
+  enabled: boolean
+  protocol: 'http' | 'https' | 'socks5' | 'socks4'
+  host: string
+  port: string | number
+  username?: string
+  password?: string
+  customUrl?: string
+  useCustomUrl?: boolean
+  applyToElectron?: boolean
+}
+
+export interface YtdlpInfo {
+  currentVersion: string | null
+  latestVersion: string | null
+  lastChecked: number | null
+  isUpdating: boolean
+  autoUpdate: boolean
+  path: string
+  status: 'idle' | 'checking' | 'updating' | 'updated' | 'error'
+  statusText?: string
+}
+
 declare global {
   interface Window {
     melodix: {
@@ -84,6 +107,14 @@ declare global {
       scanLocalFolder?: (folderPath: string) => Promise<{ success: boolean; folderPath?: string; tracks?: Track[]; error?: string }>
       parseLocalFile?: (filePath: string) => Promise<{ success: boolean; track?: Track; error?: string }>
       showItemInFolder?: (filePath: string) => void
+      // Proxy & yt-dlp
+      getProxyConfig?: () => Promise<ProxyConfig>
+      setProxyConfig?: (cfg: ProxyConfig) => Promise<{ success: boolean; error?: string }>
+      testProxy?: (proxyUrl?: string) => Promise<{ success: boolean; latencyMs?: number; error?: string }>
+      getYtdlpInfo?: () => Promise<YtdlpInfo>
+      updateYtdlp?: () => Promise<{ success: boolean; currentVersion?: string; latestVersion?: string; error?: string }>
+      setYtdlpAutoUpdate?: (enabled: boolean) => Promise<void>
+      onYtdlpStatus?: (callback: (data: YtdlpInfo) => void) => () => void
     }
   }
 }

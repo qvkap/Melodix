@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, systemPreferences, protocol, net, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, systemPreferences, protocol, net, dialog, session } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { execFile, spawn, ChildProcess } from 'child_process'
@@ -34,7 +34,42 @@ if (process.platform === 'linux') {
   process.env.PATH = `${os.homedir()}/.local/bin:${process.env.PATH}`
 }
 
+const execFileAsync = promisify(execFile)
+const store = new Store()
+
+// ─── User-Data Storage for Downloaded Binaries ───────────────────────────
+function getUserDataBinDir(): string {
+  const binDir = join(app.getPath('userData'), 'bin')
+  if (!fs.existsSync(binDir)) {
+    try {
+      fs.mkdirSync(binDir, { recursive: true })
+    } catch {}
+  }
+  return binDir
+}
+
+function getYtdlpBinaryName(): string {
+  if (process.platform === 'win32') return 'yt-dlp.exe'
+  if (process.platform === 'darwin') return 'yt-dlp_macos'
+  return 'yt-dlp'
+}
+
+function getUserUpdatedYtdlpPath(): string {
+  return join(getUserDataBinDir(), getYtdlpBinaryName())
+}
+
 function getYtdlpPath(): string {
+  // 0. Top priority: Background-updated binary in userData/bin
+  try {
+    const userBin = getUserUpdatedYtdlpPath()
+    if (fs.existsSync(userBin)) {
+      const stats = fs.statSync(userBin)
+      if (stats.size > 2 * 1024 * 1024) {
+        return userBin
+      }
+    }
+  } catch {}
+
   if (process.platform === 'win32') {
     // 1. Packaged extraResources: resources/bin/yt-dlp.exe
     const bundledPath = join(process.resourcesPath, 'bin', 'yt-dlp.exe')
@@ -84,8 +119,298 @@ function getYtdlpPath(): string {
   return 'yt-dlp'
 }
 
-const execFileAsync = promisify(execFile)
-const store = new Store()
+// ─── Proxy Server Configuration ──────────────────────────────────────────
+export interface ProxyConfig {
+  enabled: boolean
+  protocol: 'http' | 'https' | 'socks5' | 'socks4'
+  host: string
+  port: string | number
+  username?: string
+  password?: string
+  customUrl?: string
+  useCustomUrl?: boolean
+  applyToElectron?: boolean
+}
+
+function buildProxyUrl(cfg: ProxyConfig): string {
+  if (!cfg) return ''
+  if (cfg.useCustomUrl && cfg.customUrl?.trim()) {
+    let u = cfg.customUrl.trim()
+    if (!u.includes('://')) {
+      u = `http://${u}`
+    }
+    return u
+  }
+  if (!cfg.host?.trim() || !cfg.port) return ''
+  const proto = cfg.protocol || 'http'
+  const host = cfg.host.trim()
+  const port = String(cfg.port).trim()
+  if (cfg.username && cfg.username.trim()) {
+    const user = encodeURIComponent(cfg.username.trim())
+    const pass = cfg.password ? encodeURIComponent(cfg.password) : ''
+    return `${proto}://${user}:${pass}@${host}:${port}`
+  }
+  return `${proto}://${host}:${port}`
+}
+
+function getActiveProxyUrl(): string | null {
+  try {
+    const cfg = store.get('proxy_config') as ProxyConfig | undefined
+    if (cfg && cfg.enabled) {
+      const url = buildProxyUrl(cfg)
+      if (url) return url
+    }
+  } catch {}
+  return null
+}
+
+function applyProxyToSession(cfg?: ProxyConfig) {
+  const currentCfg = cfg || (store.get('proxy_config') as ProxyConfig | undefined)
+  const proxyUrl = currentCfg && currentCfg.enabled ? buildProxyUrl(currentCfg) : ''
+  const applyToElectron = currentCfg ? (currentCfg.applyToElectron !== false) : true
+
+  if (proxyUrl && applyToElectron) {
+    try {
+      session.defaultSession.setProxy({ proxyRules: proxyUrl })
+        .then(() => console.log('[Proxy] Session proxy configured:', proxyUrl.replace(/:([^:@]+)@/, ':***@')))
+        .catch(err => console.error('[Proxy] Failed to set session proxy:', err))
+      process.env.HTTP_PROXY = proxyUrl
+      process.env.HTTPS_PROXY = proxyUrl
+      process.env.ALL_PROXY = proxyUrl
+    } catch (e) {
+      console.error('[Proxy] Error applying session proxy:', e)
+    }
+  } else {
+    try {
+      session.defaultSession.setProxy({ mode: 'direct' }).catch(() => {})
+      delete process.env.HTTP_PROXY
+      delete process.env.HTTPS_PROXY
+      delete process.env.ALL_PROXY
+    } catch {}
+  }
+}
+
+// Uniform runner for yt-dlp that always injects the proxy and uses latest binary
+async function execYtdlp(args: string[], options: { timeout?: number } = {}) {
+  const ytdlpPath = getYtdlpPath()
+  const finalArgs = [...args]
+
+  const proxyUrl = getActiveProxyUrl()
+  if (proxyUrl) {
+    finalArgs.unshift('--proxy', proxyUrl)
+  }
+
+  return execFileAsync(ytdlpPath, finalArgs, options)
+}
+
+// ─── Automatic Background yt-dlp Updater ─────────────────────────────────
+export interface YtdlpUpdateState {
+  currentVersion: string | null
+  latestVersion: string | null
+  lastChecked: number | null
+  isUpdating: boolean
+  autoUpdate: boolean
+  path: string
+  status: 'idle' | 'checking' | 'updating' | 'updated' | 'error'
+  statusText?: string
+}
+
+let ytdlpState: YtdlpUpdateState = {
+  currentVersion: null,
+  latestVersion: null,
+  lastChecked: null,
+  isUpdating: false,
+  autoUpdate: true,
+  path: '',
+  status: 'idle',
+  statusText: '',
+}
+
+function broadcastYtdlpStatus() {
+  ytdlpState.path = getYtdlpPath()
+  ytdlpState.autoUpdate = store.get('ytdlp_auto_update', true) as boolean
+  mainWindow?.webContents.send('ytdlp-status', ytdlpState)
+}
+
+async function getCurrentYtdlpVersion(): Promise<string | null> {
+  try {
+    const p = getYtdlpPath()
+    const { stdout } = await execFileAsync(p, ['--version'], { timeout: 8000 })
+    const v = stdout.trim()
+    if (v) {
+      ytdlpState.currentVersion = v
+      return v
+    }
+  } catch {}
+  return null
+}
+
+async function fetchLatestYtdlpVersion(): Promise<string | null> {
+  // Method 1: Check GitHub releases/latest redirect URL (instant, no rate limit)
+  try {
+    const res = await fetch('https://github.com/yt-dlp/yt-dlp/releases/latest', {
+      method: 'HEAD',
+      redirect: 'manual',
+      headers: { 'User-Agent': 'MelodixApp/1.0.0' }
+    })
+    const loc = res.headers.get('location')
+    if (loc) {
+      const match = loc.match(/\/tag\/([^/]+)/)
+      if (match && match[1]) {
+        return match[1].replace(/^v/, '')
+      }
+    }
+  } catch {}
+
+  // Method 2: GitHub API
+  try {
+    const res = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
+      headers: { 'User-Agent': 'MelodixApp/1.0.0' }
+    })
+    if (res.ok) {
+      const data: any = await res.json()
+      if (data.tag_name) {
+        return data.tag_name.replace(/^v/, '')
+      }
+    }
+  } catch {}
+
+  return null
+}
+
+async function downloadAndInstallYtdlp(latestVer: string): Promise<boolean> {
+  const binaryName = getYtdlpBinaryName()
+  const downloadUrl = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${binaryName}`
+  const userBinDir = getUserDataBinDir()
+  const tempPath = join(userBinDir, `${binaryName}.download`)
+  const targetPath = join(userBinDir, binaryName)
+
+  console.log(`[yt-dlp Updater] Downloading ${binaryName} from ${downloadUrl}...`)
+
+  const res = await fetch(downloadUrl, {
+    headers: { 'User-Agent': 'MelodixApp/1.0.0' },
+    redirect: 'follow',
+  })
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Failed to download yt-dlp binary: HTTP ${res.status}`)
+  }
+
+  // @ts-ignore
+  const { Readable } = await import('stream')
+  // @ts-ignore
+  const { pipeline } = await import('stream/promises')
+
+  const fileStream = fs.createWriteStream(tempPath)
+  await pipeline(Readable.fromWeb(res.body as any), fileStream)
+
+  if (process.platform !== 'win32') {
+    fs.chmodSync(tempPath, 0o755)
+  }
+
+  // Validation: run --version on downloaded binary
+  const { stdout } = await execFileAsync(tempPath, ['--version'], { timeout: 10000 })
+  const verOut = stdout.trim()
+  if (!verOut || !/^\d{4}\./.test(verOut)) {
+    try { fs.unlinkSync(tempPath) } catch {}
+    throw new Error(`Downloaded binary validation failed (version output: "${verOut}")`)
+  }
+
+  // Atomic replace
+  if (fs.existsSync(targetPath)) {
+    try { fs.unlinkSync(targetPath) } catch {}
+  }
+  fs.renameSync(tempPath, targetPath)
+
+  ytdlpState.currentVersion = verOut
+  ytdlpState.path = targetPath
+  console.log(`[yt-dlp Updater] Successfully installed yt-dlp ${verOut} to ${targetPath}`)
+  return true
+}
+
+async function checkAndUpdateYtdlp(isManual: boolean = false): Promise<{ success: boolean; currentVersion?: string; latestVersion?: string; error?: string }> {
+  if (ytdlpState.isUpdating) {
+    return { success: false, error: 'Обновление уже выполняется' }
+  }
+
+  const autoEnabled = store.get('ytdlp_auto_update', true) as boolean
+  if (!isManual && !autoEnabled) {
+    return { success: true, currentVersion: ytdlpState.currentVersion || undefined }
+  }
+
+  ytdlpState.isUpdating = true
+  ytdlpState.status = 'checking'
+  ytdlpState.statusText = 'Проверка версии...'
+  broadcastYtdlpStatus()
+
+  try {
+    const [currentVer, latestVer] = await Promise.all([
+      getCurrentYtdlpVersion(),
+      fetchLatestYtdlpVersion(),
+    ])
+
+    ytdlpState.currentVersion = currentVer
+    ytdlpState.latestVersion = latestVer
+    ytdlpState.lastChecked = Date.now()
+
+    if (!latestVer) {
+      ytdlpState.status = 'idle'
+      ytdlpState.statusText = 'Не удалось получить данные о последней версии'
+      broadcastYtdlpStatus()
+      return { success: false, currentVersion: currentVer || undefined, error: 'Не удалось проверить версию на GitHub' }
+    }
+
+    if (currentVer && currentVer === latestVer && !isManual) {
+      ytdlpState.status = 'idle'
+      ytdlpState.statusText = `Установлена последняя версия (${currentVer})`
+      broadcastYtdlpStatus()
+      return { success: true, currentVersion: currentVer, latestVersion: latestVer }
+    }
+
+    // Need update or manual force update
+    if (!currentVer || currentVer !== latestVer || (isManual && !fs.existsSync(getUserUpdatedYtdlpPath()))) {
+      ytdlpState.status = 'updating'
+      ytdlpState.statusText = `Загрузка yt-dlp v${latestVer}...`
+      broadcastYtdlpStatus()
+
+      await downloadAndInstallYtdlp(latestVer)
+
+      ytdlpState.status = 'updated'
+      ytdlpState.statusText = `yt-dlp обновлен до v${ytdlpState.currentVersion}`
+      broadcastYtdlpStatus()
+      return { success: true, currentVersion: ytdlpState.currentVersion || latestVer, latestVersion: latestVer }
+    } else {
+      ytdlpState.status = 'idle'
+      ytdlpState.statusText = `Установлена последняя версия (${currentVer})`
+      broadcastYtdlpStatus()
+      return { success: true, currentVersion: currentVer, latestVersion: latestVer }
+    }
+  } catch (err: any) {
+    console.error('[yt-dlp Updater] Error:', err?.message || err)
+    ytdlpState.status = 'error'
+    ytdlpState.statusText = err?.message || 'Ошибка обновления yt-dlp'
+    broadcastYtdlpStatus()
+    return { success: false, currentVersion: ytdlpState.currentVersion || undefined, error: err?.message || String(err) }
+  } finally {
+    ytdlpState.isUpdating = false
+    broadcastYtdlpStatus()
+  }
+}
+
+function scheduleYtdlpBackgroundUpdater() {
+  // 1. Check once 25 seconds after app start (keeps initial startup fast)
+  setTimeout(() => {
+    getCurrentYtdlpVersion().then(() => {
+      broadcastYtdlpStatus()
+      checkAndUpdateYtdlp(false).catch(e => console.log('[yt-dlp Background Updater note]:', e?.message || e))
+    })
+  }, 25000)
+
+  // 2. Periodic background check every 12 hours
+  setInterval(() => {
+    checkAndUpdateYtdlp(false).catch(e => console.log('[yt-dlp Periodic Updater note]:', e?.message || e))
+  }, 12 * 60 * 60 * 1000)
+}
 
 let mainWindow: BrowserWindow | null = null
 
@@ -175,7 +500,9 @@ app.whenReady().then(() => {
       return new Response('File not found', { status: 404 })
     }
   })
+  applyProxyToSession()
   createWindow()
+  scheduleYtdlpBackgroundUpdater()
 })
 
 app.on('window-all-closed', () => {
@@ -348,7 +675,6 @@ ipcMain.handle('search-music', async (_event, query: string) => {
     return cached.data
   }
 
-  const ytdlpPath = getYtdlpPath()
   const rawQuery = query.trim()
 
   // Helper to parse yt-dlp dump-json lines
@@ -426,7 +752,7 @@ ipcMain.handle('search-music', async (_event, query: string) => {
   // If channel handle detected, fetch official channel videos & releases first
   if (channelHandle) {
     try {
-      const { stdout: channelStdout } = await execFileAsync(ytdlpPath, [
+      const { stdout: channelStdout } = await execYtdlp([
         '--flat-playlist',
         '--dump-json',
         `https://www.youtube.com/@${channelHandle}/videos`,
@@ -440,7 +766,7 @@ ipcMain.handle('search-music', async (_event, query: string) => {
     }
 
     try {
-      const { stdout: releaseStdout } = await execFileAsync(ytdlpPath, [
+      const { stdout: releaseStdout } = await execYtdlp([
         '--flat-playlist',
         '--dump-json',
         `https://www.youtube.com/@${channelHandle}/releases`,
@@ -455,7 +781,7 @@ ipcMain.handle('search-music', async (_event, query: string) => {
   // Standard YouTube Search (30 results)
   try {
     const searchQuery = channelHandle ? `${channelHandle} songs` : rawQuery
-    const { stdout } = await execFileAsync(ytdlpPath, [
+    const { stdout } = await execYtdlp([
       `ytsearch30:${searchQuery}`,
       '--dump-json',
       '--no-playlist',
@@ -488,7 +814,7 @@ ipcMain.handle('search-music', async (_event, query: string) => {
   // 2. Fallback: SoundCloud Search (30 results, unblocked, very fast)
   try {
     const soundcloudQuery = channelHandle || rawQuery
-    const { stdout } = await execFileAsync(ytdlpPath, [
+    const { stdout } = await execYtdlp([
       `scsearch30:${soundcloudQuery}`,
       '--dump-json',
       '--no-playlist',
@@ -521,7 +847,6 @@ ipcMain.handle('search-albums', async (_event, query: string) => {
     return cached.data
   }
 
-  const ytdlpPath = getYtdlpPath()
   const handleMatch = rawQuery.match(/(?:https?:\/\/(?:www\.)?youtube\.com\/)?@([a-zA-Z0-9_.-]+)/i) ||
                       (rawQuery.endsWith('.mp3') ? [null, rawQuery.replace(/^@/, '')] : null)
   const channelHandle = handleMatch ? handleMatch[1] : null
@@ -531,7 +856,7 @@ ipcMain.handle('search-albums', async (_event, query: string) => {
   // If channel handle, fetch official channel releases first
   if (channelHandle) {
     try {
-      const { stdout: releaseStdout } = await execFileAsync(ytdlpPath, [
+      const { stdout: releaseStdout } = await execYtdlp([
         '--flat-playlist',
         '--dump-json',
         `https://www.youtube.com/@${channelHandle}/releases`,
@@ -563,7 +888,7 @@ ipcMain.handle('search-albums', async (_event, query: string) => {
   // Playlist / Album search on YouTube
   try {
     const searchQuery = channelHandle ? `${channelHandle} album` : rawQuery
-    const { stdout } = await execFileAsync(ytdlpPath, [
+    const { stdout } = await execYtdlp([
       '--flat-playlist',
       '--dump-json',
       '--playlist-items', '1:25',
@@ -625,9 +950,8 @@ ipcMain.handle('get-album-tracks', async (_event, albumIdOrUrl: string) => {
     return cached.data
   }
 
-  const ytdlpPath = getYtdlpPath()
   try {
-    const { stdout } = await execFileAsync(ytdlpPath, [
+    const { stdout } = await execYtdlp([
       '--flat-playlist',
       '--dump-json',
       playlistUrl,
@@ -701,7 +1025,6 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
     return { success: true, url: diskCached.streamUrl }
   }
 
-  const ytdlpPath = getYtdlpPath()
   let targetUrl = trackIdOrUrl
   if (!targetUrl.startsWith('http')) {
     targetUrl = `https://youtube.com/watch?v=${trackIdOrUrl}`
@@ -713,7 +1036,7 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
     : 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best'
 
   try {
-    const { stdout } = await execFileAsync(ytdlpPath, [
+    const { stdout } = await execYtdlp([
       targetUrl,
       '-f', formatArg,
       '--get-url',
@@ -734,7 +1057,7 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
   // Fallback: If SoundCloud track failed (e.g. DRM or blocked), search on YouTube!
   if (fallbackQuery) {
     try {
-      const { stdout } = await execFileAsync(ytdlpPath, [
+      const { stdout } = await execYtdlp([
         `ytsearch1:${fallbackQuery}`,
         '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
         '--get-url',
@@ -875,6 +1198,77 @@ ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration, trackId
 // Store: get/set
 ipcMain.handle('store-get', (_event, key: string) => store.get(key))
 ipcMain.handle('store-set', (_event, key: string, value: any) => store.set(key, value))
+
+// Proxy Configuration IPC Handlers
+ipcMain.handle('get-proxy-config', () => {
+  const defaultCfg: ProxyConfig = {
+    enabled: false,
+    protocol: 'http',
+    host: '127.0.0.1',
+    port: '7890',
+    applyToElectron: true,
+  }
+  return (store.get('proxy_config') as ProxyConfig) || defaultCfg
+})
+
+ipcMain.handle('set-proxy-config', async (_event, cfg: ProxyConfig) => {
+  try {
+    store.set('proxy_config', cfg)
+    applyProxyToSession(cfg)
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
+ipcMain.handle('test-proxy', async (_event, proxyUrl?: string) => {
+  const start = Date.now()
+  const targetUrl = proxyUrl || getActiveProxyUrl()
+  if (!targetUrl) {
+    return { success: false, error: 'Прокси-сервер не указан' }
+  }
+
+  try {
+    const ytdlpPath = getYtdlpPath()
+    await execFileAsync(ytdlpPath, [
+      '--proxy', targetUrl,
+      '--socket-timeout', '8',
+      '--no-warnings',
+      '--dump-user-agent',
+    ], { timeout: 12000 })
+
+    return { success: true, latencyMs: Date.now() - start }
+  } catch (err: any) {
+    console.log('[test-proxy note]:', err?.message || err)
+    return {
+      success: false,
+      latencyMs: Date.now() - start,
+      error: err?.message?.includes('timed out') || err?.code === 'ETIMEDOUT'
+        ? 'Таймаут подключения (прокси не отвечает)'
+        : (err?.message?.slice(0, 100) || 'Ошибка подключения к прокси'),
+    }
+  }
+})
+
+// yt-dlp Updater IPC Handlers
+ipcMain.handle('get-ytdlp-info', async () => {
+  if (!ytdlpState.currentVersion) {
+    await getCurrentYtdlpVersion()
+  }
+  ytdlpState.path = getYtdlpPath()
+  ytdlpState.autoUpdate = store.get('ytdlp_auto_update', true) as boolean
+  return ytdlpState
+})
+
+ipcMain.handle('update-ytdlp', async () => {
+  return checkAndUpdateYtdlp(true)
+})
+
+ipcMain.handle('set-ytdlp-auto-update', (_event, enabled: boolean) => {
+  store.set('ytdlp_auto_update', Boolean(enabled))
+  ytdlpState.autoUpdate = Boolean(enabled)
+  broadcastYtdlpStatus()
+})
 
 // System username
 ipcMain.handle('get-username', () => {
