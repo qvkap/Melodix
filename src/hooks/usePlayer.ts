@@ -125,6 +125,9 @@ export function usePlayer() {
   const hasPreloadedNextRef = useRef(false)
   const trackStartTimeRef = useRef(0)
   const seekingTargetRef = useRef<{ time: number; until: number } | null>(null)
+  // Generation counter: incremented on each loadTrack call.
+  // After every async await we verify our gen === loadGenRef.current to abort stale loads.
+  const loadGenRef = useRef(0)
 
   // Lightweight RAF loop for active lyric line and next track preloading
   const tick = useCallback(() => {
@@ -203,6 +206,9 @@ export function usePlayer() {
   }
 
   const loadTrack = useCallback(async (track: Track) => {
+    // Claim this generation — any in-flight older loadTrack will see a mismatch and abort
+    const gen = ++loadGenRef.current
+
     if (howlRef.current) {
       howlRef.current.unload()
       howlRef.current = null
@@ -248,6 +254,10 @@ export function usePlayer() {
       const streamTarget = track.url && track.url.startsWith('http') ? track.url : track.id
       const fallbackQuery = `${fixedTrack.artist} ${fixedTrack.title}`
       const streamRes = await window.melodix.getStreamUrl(streamTarget, fallbackQuery)
+
+      // ── GUARD: user skipped while we were waiting — abort silently ──
+      if (gen !== loadGenRef.current) return
+
       if (!streamRes.success || !streamRes.url) {
         console.error('Stream error:', streamRes.error)
         setLyrics(l => ({ ...l, loading: false }))
@@ -256,13 +266,18 @@ export function usePlayer() {
       streamUrl = streamRes.url
     }
 
-    // Fetch Lyrics in parallel
+    // ── GUARD: check again after any synchronous local-url resolution ──
+    if (gen !== loadGenRef.current) return
+
+    // Fetch Lyrics in parallel (fire-and-forget, but guard the callback)
     window.melodix.fetchLyrics({
       title: track.title,
       artist: track.artist,
       duration: track.duration,
       trackId: track.id,
     }).then(res => {
+      // Only apply lyrics if this load is still the active one
+      if (gen !== loadGenRef.current) return
       if (res.success) {
         const rawLines: LrcLine[] = res.syncedLyrics ? parseLrc(res.syncedLyrics) : []
         const lines: LrcLine[] = prepareLyricsWithInstrumentals(rawLines)
