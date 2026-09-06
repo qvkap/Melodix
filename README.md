@@ -18,6 +18,10 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License MIT" />
 </p>
 
+<p align="center">
+  <img src="Screenshoot.jpg" alt="Melodix Screenshot" width="92%" style="border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); max-width: 1000px;" />
+</p>
+
 ---
 
 ## ✨ Ключевые возможности
