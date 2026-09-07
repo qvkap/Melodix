@@ -62,29 +62,23 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
       sx={{
         position: 'fixed',
         bottom: isMobile ? (bottomOffset > 0 ? bottomOffset + 8 : 10) : bottomOffset,
-        left: isMobile ? 10 : sidebarWidth,
-        right: isMobile ? 10 : 0,
+        left: isMobile ? 12 : sidebarWidth,
+        right: isMobile ? 12 : 0,
         maxWidth: isMobile ? 600 : 'none',
         mx: isMobile ? 'auto' : 0,
         zIndex: 1100,
-        borderRadius: isMobile ? 3.5 : 0,
+        borderRadius: isMobile ? 4 : 0,
         background: isAndroid
-          ? 'linear-gradient(135deg, rgba(36, 28, 50, 0.97) 0%, rgba(24, 18, 36, 0.98) 100%)'
+          ? 'linear-gradient(135deg, rgba(34, 26, 48, 0.96) 0%, rgba(26, 20, 38, 0.98) 100%)'
           : isMobile
-          ? 'linear-gradient(0deg, rgba(28, 30, 44, 0.97) 75%, rgba(20, 22, 34, 0.92) 100%)'
+          ? 'linear-gradient(0deg, rgba(22, 24, 34, 0.96) 0%, rgba(18, 20, 28, 0.98) 100%)'
           : 'linear-gradient(0deg, rgba(12, 14, 20, 0.98) 75%, rgba(12, 14, 20, 0.75) 100%)',
-        backdropFilter: 'blur(32px)',
-        border: isMobile
-          ? (isAndroid ? '1.5px solid rgba(208, 188, 255, 0.32)' : '1.5px solid rgba(255, 255, 255, 0.18)')
-          : 'none',
-        borderTop: isMobile
-          ? (isAndroid ? '1.5px solid rgba(208, 188, 255, 0.4)' : '1.5px solid rgba(255, 255, 255, 0.22)')
-          : '1px solid rgba(255, 255, 255, 0.08)',
+        backdropFilter: 'blur(28px)',
+        border: 'none',
+        borderTop: isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.06)',
         boxShadow: isMobile
-          ? (isAndroid
-              ? '0 10px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(208, 188, 255, 0.15)'
-              : '0 10px 36px rgba(0, 0, 0, 0.7)')
-          : 'none',
+          ? '0 8px 32px rgba(0, 0, 0, 0.55)'
+          : '0 -2px 16px rgba(0, 0, 0, 0.3)',
         px: { xs: 1.5, md: 3 },
         pt: 0.6,
         pb: isMobile ? 1.2 : 1.8,
@@ -331,7 +325,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
               sx={{
                 color: isAndroid ? 'primary.light' : 'rgba(255, 255, 255, 0.9)',
                 bgcolor: isAndroid ? 'rgba(208, 188, 255, 0.16)' : 'rgba(255, 255, 255, 0.08)',
-                border: isAndroid ? '1px solid rgba(208, 188, 255, 0.25)' : 'none',
+                border: 'none',
                 p: { xs: 1, sm: 0.8 },
                 '&:hover': { bgcolor: isAndroid ? 'rgba(208, 188, 255, 0.25)' : 'rgba(255, 255, 255, 0.15)' }
               }}

@@ -52,6 +52,11 @@ export interface Album {
   url?: string
 }
 
+export interface FavoriteArtist {
+  name: string
+  avatar?: string
+}
+
 export type BlurMaterial = 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'none'
 export type AppLanguage = 'ru' | 'en'
 

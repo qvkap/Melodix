@@ -233,13 +233,12 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               sx={{
                 color: showLyrics ? 'primary.main' : 'rgba(255, 255, 255, 0.8)',
                 bgcolor: showLyrics ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid',
-                borderColor: showLyrics ? 'rgba(208, 188, 255, 0.45)' : 'rgba(255, 255, 255, 0.14)',
+                border: 'none',
                 backdropFilter: 'blur(12px)',
                 borderRadius: 2.5,
                 width: 42,
                 height: 42,
-                transition: 'all 0.18s ease',
+                transition: 'transform 0.15s ease, background 0.15s ease',
                 '&:hover': { transform: 'scale(1.06)' },
               }}
             >
@@ -261,7 +260,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           justifyContent: isMobile ? 'center' : (showLyrics ? 'space-between' : 'center'),
           px: isMobile ? 1.5 : { xs: 2, sm: 4, md: 6, lg: 10, xl: 14 },
           position: 'relative',
-          transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
+          transition: isMobile ? 'none' : 'all 0.35s ease',
         }}
       >
         {/* LEFT COLUMN: Album Art, Info & Controls (Mode 1: Only Album Art on mobile) */}
@@ -274,7 +273,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
+            transition: isMobile ? 'opacity 0.2s ease' : 'all 0.35s ease',
             mx: (isMobile || !showLyrics) ? 'auto' : 0,
           }}
         >
@@ -686,6 +685,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                     key={i}
                     ref={isActive ? activeLineRef : null}
                     onClick={(e) => {
+                      e.stopPropagation()
                       onSeekToTime(line.time)
                       e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
                     }}
@@ -740,6 +740,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   key={i}
                   ref={isActive ? activeLineRef : null}
                   onClick={(e) => {
+                    e.stopPropagation()
                     onSeekToTime(line.time)
                     e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
                   }}
@@ -848,14 +849,14 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             zIndex: 10,
             bgcolor: 'rgba(28, 22, 42, 0.94)',
             backdropFilter: 'blur(28px)',
-            border: '1.5px solid rgba(208, 188, 255, 0.28)',
+            border: 'none',
             borderRadius: 4,
             px: 2,
             py: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px rgba(208, 188, 255, 0.12)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7)',
           }}
         >
           <Tooltip title={isFav ? 'Удалить из избранного' : 'В избранное'}>
@@ -897,7 +898,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               sx={{
                 color: 'primary.main',
                 bgcolor: 'rgba(208, 188, 255, 0.2)',
-                border: '1px solid rgba(208, 188, 255, 0.35)',
+                border: 'none',
                 borderRadius: 2.5,
                 width: 38,
                 height: 38,

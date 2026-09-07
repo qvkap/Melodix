@@ -392,7 +392,11 @@ function PlayerApp() {
 
           {view === 'favorites' && (
             <Box sx={{ height: '100%', minHeight: 0, overflowY: 'auto' }}>
-              <FavoritesView onPlay={handlePlay} />
+              <FavoritesView
+                onPlay={handlePlay}
+                onAddToQueue={handleAddToQueue}
+                onSelectArtist={handleSelectArtist}
+              />
             </Box>
           )}
 

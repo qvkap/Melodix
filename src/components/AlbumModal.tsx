@@ -24,7 +24,8 @@ interface AlbumModalProps {
 export const AlbumModal: React.FC<AlbumModalProps> = ({
   album, open, onClose, onPlay, onAddToQueue, onTracksLoaded
 }) => {
-  const { settings, isFavorite, toggleFavorite } = useSettings()
+  const { settings, isFavorite, toggleFavorite, isFavoriteAlbum, toggleFavoriteAlbum } = useSettings()
+  const isFavAlbum = album ? isFavoriteAlbum(album.id) : false
   const [tracks, setTracks] = useState<Track[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -219,6 +220,24 @@ export const AlbumModal: React.FC<AlbumModalProps> = ({
                   В очередь
                 </Button>
               )}
+
+              <Tooltip title={isFavAlbum ? 'Удалить альбом из избранного' : 'Добавить альбом в избранное'}>
+                <IconButton
+                  onClick={() => toggleFavoriteAlbum(album)}
+                  sx={{
+                    color: isFavAlbum ? '#ff4081' : 'rgba(255,255,255,0.7)',
+                    bgcolor: isFavAlbum ? 'rgba(255, 64, 129, 0.15)' : 'rgba(255,255,255,0.08)',
+                    borderRadius: 3,
+                    p: 1.2,
+                    '&:hover': {
+                      bgcolor: isFavAlbum ? 'rgba(255, 64, 129, 0.25)' : 'rgba(255,255,255,0.18)',
+                      color: isFavAlbum ? '#ff4081' : '#ffffff'
+                    }
+                  }}
+                >
+                  {isFavAlbum ? <Favorite sx={{ fontSize: 22 }} /> : <FavoriteBorder sx={{ fontSize: 22 }} />}
+                </IconButton>
+              </Tooltip>
             </Box>
           </Box>
         </Box>

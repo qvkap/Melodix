@@ -194,9 +194,29 @@ export function usePlayer() {
           })
         }
       }
-      rafRef.current = requestAnimationFrame(tick)
     }
+    // ALWAYS reschedule next frame so tick never dies during buffering/play startup
+    rafRef.current = requestAnimationFrame(tick)
   }, [settings.lastfmEnabled, settings.lastfmSessionKey, settings.lastfmApiKey, settings.lastfmSecret])
+
+  // Mobile background interval timer fallback for reliable lyrics syncing
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const h = howlRef.current
+      if (h && h.playing()) {
+        const t = h.seek()
+        if (typeof t === 'number' && isFinite(t)) {
+          setLyrics(l => {
+            if (!l.lines.length) return l
+            const newLine = getActiveLine(l.lines, t)
+            if (l.activeLine === newLine) return l
+            return { ...l, activeLine: newLine }
+          })
+        }
+      }
+    }, 250)
+    return () => clearInterval(timer)
+  }, [])
 
   const stopTick = () => {
     if (rafRef.current) {
@@ -332,6 +352,18 @@ export function usePlayer() {
     const { repeat, queue, currentTrack, shuffle } = stateRef.current
     if (!currentTrack) return
 
+    const h = howlRef.current
+    if (h) {
+      const cur = h.seek()
+      const dur = h.duration()
+      // Guard against false/premature stream disconnects on mobile:
+      // If audio supposedly ended but less than 12 seconds played while track length is > 30s, ignore
+      if (typeof cur === 'number' && typeof dur === 'number' && dur > 30 && cur < 12) {
+        console.warn('Ignoring premature stream end at', cur, 'of', dur)
+        return
+      }
+    }
+
     // If Repeat One: restart current track completely
     if (repeat === 'one') {
       loadTrack(currentTrack)
@@ -370,7 +402,9 @@ export function usePlayer() {
     if (!h) return
     const d = h.duration() || stateRef.current.currentTrack?.duration || 0
     if (!d) return
-    const targetSeconds = value * d
+    // Clamp so we never seek past the audio's true length
+    const rawTarget = value * d
+    const targetSeconds = Math.min(Math.max(0, rawTarget), Math.max(0, d - 0.5))
 
     try {
       h.seek(targetSeconds)
@@ -400,8 +434,15 @@ export function usePlayer() {
     const h = howlRef.current
     if (!h) return
 
+    const d = h.duration() || stateRef.current.currentTrack?.duration || 0
+    // CRITICAL: Clamp seconds so it NEVER seeks beyond the end of the loaded audio!
+    // Seeking past duration in HTML5 audio causes an instant 'ended' event, which skips to the next track!
+    const clampedSeconds = d > 0
+      ? Math.min(Math.max(0, seconds), Math.max(0, d - 0.6))
+      : Math.max(0, seconds)
+
     try {
-      h.seek(seconds)
+      h.seek(clampedSeconds)
       if (!h.playing()) {
         h.play()
         setState(s => ({ ...s, isPlaying: true }))
@@ -414,21 +455,20 @@ export function usePlayer() {
     }
 
     seekingTargetRef.current = {
-      time: seconds,
+      time: clampedSeconds,
       until: Date.now() + 2500,
     }
 
     setLyrics(l => {
       if (!l.lines.length) return l
-      const newLine = getActiveLine(l.lines, seconds)
+      const newLine = getActiveLine(l.lines, clampedSeconds)
       return { ...l, activeLine: newLine }
     })
 
-    const d = h.duration() || stateRef.current.currentTrack?.duration || 0
     setState(s => ({
       ...s,
-      currentTime: seconds,
-      progress: d > 0 ? (seconds / d) * 100 : 0,
+      currentTime: clampedSeconds,
+      progress: d > 0 ? (clampedSeconds / d) * 100 : 0,
     }))
   }, [tick])
 

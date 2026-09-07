@@ -3,7 +3,8 @@ import {
   Box, Typography, Button, CircularProgress, IconButton, Tooltip
 } from '@mui/material'
 import {
-  ArrowBack, PlayArrow, Shuffle, Person, MusicNote
+  ArrowBack, PlayArrow, Shuffle, Person, MusicNote,
+  Favorite, FavoriteBorder
 } from '@mui/icons-material'
 import { Track } from '../types'
 import { TrackCard } from './TrackCard'
@@ -20,7 +21,8 @@ interface ArtistViewProps {
 export const ArtistView: React.FC<ArtistViewProps> = ({
   artistName, artistAvatar, onBack, onPlay
 }) => {
-  const { settings, t } = useSettings()
+  const { settings, t, isFavoriteArtist, toggleFavoriteArtist } = useSettings()
+  const isFavArtist = isFavoriteArtist(artistName)
   const [tracks, setTracks] = useState<Track[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -169,43 +171,63 @@ export const ArtistView: React.FC<ArtistViewProps> = ({
             {artistName}
           </Typography>
 
-          {tracks.length > 0 && (
-            <Box display="flex" gap={1.5} flexWrap="wrap">
-              <Button
-                variant="contained"
-                startIcon={<PlayArrow />}
-                onClick={() => onPlay(tracks[0], tracks)}
+          <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+            {tracks.length > 0 && (
+              <>
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrow />}
+                  onClick={() => onPlay(tracks[0], tracks)}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: '#141218',
+                    fontWeight: 700,
+                    borderRadius: 2.5,
+                    px: 2.5,
+                    '&:hover': { bgcolor: 'primary.light' }
+                  }}
+                >
+                  Слушать
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<Shuffle />}
+                  onClick={() => {
+                    const shuffled = [...tracks].sort(() => Math.random() - 0.5)
+                    onPlay(shuffled[0], shuffled)
+                  }}
+                  sx={{
+                    borderColor: 'rgba(255,255,255,0.2)',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    borderRadius: 2.5,
+                    px: 2,
+                    '&:hover': { borderColor: '#ffffff', bgcolor: 'rgba(255,255,255,0.06)' }
+                  }}
+                >
+                  Вперемешку
+                </Button>
+              </>
+            )}
+
+            <Tooltip title={isFavArtist ? 'В избранном' : 'Добавить артиста в избранное'}>
+              <IconButton
+                onClick={() => toggleFavoriteArtist({ name: artistName, avatar })}
                 sx={{
-                  bgcolor: 'primary.main',
-                  color: '#141218',
-                  fontWeight: 700,
+                  color: isFavArtist ? '#ff4081' : 'rgba(255,255,255,0.7)',
+                  bgcolor: isFavArtist ? 'rgba(255, 64, 129, 0.15)' : 'rgba(255,255,255,0.08)',
                   borderRadius: 2.5,
-                  px: 2.5,
-                  '&:hover': { bgcolor: 'primary.light' }
+                  p: 1.1,
+                  '&:hover': {
+                    bgcolor: isFavArtist ? 'rgba(255, 64, 129, 0.25)' : 'rgba(255,255,255,0.18)',
+                    color: isFavArtist ? '#ff4081' : '#ffffff'
+                  }
                 }}
               >
-                Слушать
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<Shuffle />}
-                onClick={() => {
-                  const shuffled = [...tracks].sort(() => Math.random() - 0.5)
-                  onPlay(shuffled[0], shuffled)
-                }}
-                sx={{
-                  borderColor: 'rgba(255,255,255,0.2)',
-                  color: '#ffffff',
-                  fontWeight: 600,
-                  borderRadius: 2.5,
-                  px: 2,
-                  '&:hover': { borderColor: '#ffffff', bgcolor: 'rgba(255,255,255,0.06)' }
-                }}
-              >
-                Вперемешку
-              </Button>
-            </Box>
-          )}
+                {isFavArtist ? <Favorite sx={{ fontSize: 22 }} /> : <FavoriteBorder sx={{ fontSize: 22 }} />}
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
       </Box>
 

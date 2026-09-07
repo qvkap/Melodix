@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Box, TextField, InputAdornment, IconButton, Button,
-  CircularProgress, Typography, Chip
+  CircularProgress, Typography, Chip, Tooltip
 } from '@mui/material'
 import {
   Search, Clear, ChevronRight, LibraryMusic, Album as AlbumIcon,
-  PlayArrow, MusicNote
+  PlayArrow, MusicNote, Favorite, FavoriteBorder
 } from '@mui/icons-material'
 import { Track, Album } from '../types'
 import { TrackCard } from './TrackCard'
@@ -23,7 +23,7 @@ interface SearchViewProps {
 export const SearchView: React.FC<SearchViewProps> = ({
   onPlay, onAddToQueue, initialQuery, onSelectArtist
 }) => {
-  const { settings, t } = useSettings()
+  const { settings, t, isFavoriteAlbum, toggleFavoriteAlbum, isFavoriteArtist, toggleFavoriteArtist } = useSettings()
   const [query, setQuery] = useState(initialQuery || '')
   const [results, setResults] = useState<Track[]>([])
   const [albums, setAlbums] = useState<Album[]>([])
@@ -204,7 +204,9 @@ export const SearchView: React.FC<SearchViewProps> = ({
     setAlbumModalOpen(true)
   }
 
-  const renderAlbumCard = (album: Album) => (
+  const renderAlbumCard = (album: Album) => {
+    const isFav = isFavoriteAlbum(album.id)
+    return (
     <Box
       key={album.id}
       onClick={() => handleOpenAlbum(album)}
@@ -325,7 +327,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         {album.artist}
       </Typography>
 
-      <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', gap: 0.8 }}>
+      <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.8 }}>
         <Chip
           label={album.trackCount ? formatTrackCount(album.trackCount) : 'Альбом'}
           size="small"
@@ -338,9 +340,26 @@ export const SearchView: React.FC<SearchViewProps> = ({
             borderRadius: 1.5,
           }}
         />
+
+        <Tooltip title={isFav ? 'Удалить из избранного' : 'В избранное'}>
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleFavoriteAlbum(album)
+            }}
+            sx={{
+              p: 0.5,
+              color: isFav ? '#ff4081' : 'rgba(255,255,255,0.4)',
+              '&:hover': { color: '#ff4081' }
+            }}
+          >
+            {isFav ? <Favorite sx={{ fontSize: 18 }} /> : <FavoriteBorder sx={{ fontSize: 18 }} />}
+          </IconButton>
+        </Tooltip>
       </Box>
     </Box>
-  )
+  )}
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3, md: 4, lg: 5 }, pb: 16, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
@@ -516,9 +535,27 @@ export const SearchView: React.FC<SearchViewProps> = ({
               </Box>
             </Box>
 
-            <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.5)' }}>
-              <ChevronRight />
-            </IconButton>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Tooltip title={isFavoriteArtist(topArtist.name) ? 'Удалить из избранного' : 'В избранное'}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleFavoriteArtist({ name: topArtist.name, avatar: topArtist.avatar })
+                  }}
+                  sx={{
+                    color: isFavoriteArtist(topArtist.name) ? '#ff4081' : 'rgba(255,255,255,0.4)',
+                    p: 0.8,
+                    '&:hover': { color: '#ff4081' }
+                  }}
+                >
+                  {isFavoriteArtist(topArtist.name) ? <Favorite sx={{ fontSize: 20 }} /> : <FavoriteBorder sx={{ fontSize: 20 }} />}
+                </IconButton>
+              </Tooltip>
+              <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                <ChevronRight />
+              </IconButton>
+            </Box>
           </Box>
         </Box>
       )}

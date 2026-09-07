@@ -264,42 +264,55 @@ export function initMobileBridge() {
     // Mobile Stream URL resolution
     getStreamUrl: async (trackIdOrUrl: string, fallbackQuery?: string): Promise<{ success: boolean; url?: string; error?: string }> => {
       try {
-        // 1. Direct audio stream URLs (e.g. Audius stream, iTunes preview, or direct media link)
+        // 1. Direct full-length audio stream URLs (Audius or full media stream)
         if (
           trackIdOrUrl.startsWith('http') &&
+          !trackIdOrUrl.includes('audio-ssl.itunes.apple.com') &&
           (trackIdOrUrl.includes('audius.co') ||
-           trackIdOrUrl.includes('audio-ssl.itunes.apple.com') ||
-           trackIdOrUrl.includes('.m4a') ||
+           trackIdOrUrl.includes('sndcdn.com') ||
            trackIdOrUrl.includes('.mp3') ||
-           trackIdOrUrl.includes('/stream') ||
            trackIdOrUrl.includes('.m3u8'))
         ) {
           return { success: true, url: trackIdOrUrl }
         }
 
-        // 2. Audius track ID
+        // 2. Resolve Full-length track via SoundCloud for any track or fallback query
+        const queryToSearch = fallbackQuery || (trackIdOrUrl.startsWith('itunes:') ? undefined : trackIdOrUrl)
+        if (queryToSearch) {
+          try {
+            const clientId = await getSoundCloudClientId()
+            const scRes = await fetch(
+              `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(queryToSearch.trim())}&client_id=${clientId}&limit=3`,
+              { signal: AbortSignal.timeout(4500) }
+            )
+            if (scRes.ok) {
+              const scData = await scRes.json()
+              const topTrack = scData?.collection?.[0]
+              if (topTrack?.id) {
+                const media = topTrack.media?.transcodings || []
+                const prog = media.find((m: any) => m.format?.protocol === 'progressive')
+                const hls = media.find((m: any) => m.format?.protocol === 'hls' || m.format?.protocol?.includes('hls'))
+                const target = prog || hls
+                if (target?.url) {
+                  const sRes = await fetch(`${target.url}?client_id=${clientId}`, { signal: AbortSignal.timeout(4500) })
+                  if (sRes.ok) {
+                    const sData = await sRes.json()
+                    if (sData?.url) return { success: true, url: sData.url }
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
+
+        // 3. Audius track ID
         if (trackIdOrUrl.startsWith('audius:')) {
           const cleanId = trackIdOrUrl.replace(/^audius:/, '')
           const audiusUrl = `https://discoveryprovider.audius.co/v1/tracks/${cleanId}/stream?app_name=melodix`
           return { success: true, url: audiusUrl }
         }
 
-        // 3. iTunes track ID with direct preview search
-        if (trackIdOrUrl.startsWith('itunes:')) {
-          const cleanId = trackIdOrUrl.replace(/^itunes:/, '')
-          try {
-            const lookup = await fetch(`https://itunes.apple.com/lookup?id=${cleanId}`, { signal: AbortSignal.timeout(5000) })
-            if (lookup.ok) {
-              const data = await lookup.json()
-              const trackItem = data?.results?.[0]
-              if (trackItem?.previewUrl) {
-                return { success: true, url: trackItem.previewUrl }
-              }
-            }
-          } catch {}
-        }
-
-        // 4. SoundCloud stream resolution
+        // 4. SoundCloud track ID
         if (trackIdOrUrl.startsWith('sc:') || trackIdOrUrl.includes('soundcloud.com')) {
           const cleanId = trackIdOrUrl.replace(/^sc:/, '')
           const clientId = await getSoundCloudClientId()
@@ -325,35 +338,24 @@ export function initMobileBridge() {
           }
         }
 
-        // 5. Fallback: Search track on Audius by title/artist query
-        if (fallbackQuery) {
-          const q = encodeURIComponent(fallbackQuery.trim())
+        // 5. iTunes preview as final audio fallback
+        if (trackIdOrUrl.startsWith('itunes:')) {
+          const cleanId = trackIdOrUrl.replace(/^itunes:/, '')
           try {
-            const audiusRes = await fetch(`https://discoveryprovider.audius.co/v1/tracks/search?query=${q}&app_name=melodix`, {
-              signal: AbortSignal.timeout(5000),
-            })
-            if (audiusRes.ok) {
-              const aData = await audiusRes.json()
-              const first = aData?.data?.[0]
-              if (first?.id) {
-                return { success: true, url: `https://discoveryprovider.audius.co/v1/tracks/${first.id}/stream?app_name=melodix` }
+            const lookup = await fetch(`https://itunes.apple.com/lookup?id=${cleanId}`, { signal: AbortSignal.timeout(4000) })
+            if (lookup.ok) {
+              const data = await lookup.json()
+              const trackItem = data?.results?.[0]
+              if (trackItem?.previewUrl) {
+                return { success: true, url: trackItem.previewUrl }
               }
             }
           } catch {}
+        }
 
-          // Fallback to iTunes preview
-          try {
-            const itunesRes = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=1`, {
-              signal: AbortSignal.timeout(5000),
-            })
-            if (itunesRes.ok) {
-              const iData = await itunesRes.json()
-              const first = iData?.results?.[0]
-              if (first?.previewUrl) {
-                return { success: true, url: first.previewUrl }
-              }
-            }
-          } catch {}
+        // 6. Direct URL fallback
+        if (trackIdOrUrl.startsWith('http')) {
+          return { success: true, url: trackIdOrUrl }
         }
       } catch (err: any) {
         console.warn('[MobileBridge] Stream extraction notice:', err?.message)
@@ -362,23 +364,49 @@ export function initMobileBridge() {
       return { success: false, error: 'Поток недоступен на данном устройстве' }
     },
 
-    // Lyrics (lrclib.net supports direct browser CORS)
+    // Lyrics (lrclib.net with Multi-Query search fallback)
     fetchLyrics: async (opts: { title: string; artist: string; duration?: number; trackId?: string }) => {
       try {
         const cleanT = opts.title.replace(/[\(\[\{][^\)\]\}]*[\)\]\}]/g, '').trim()
         const cleanA = opts.artist.replace(/\s*-\s*Topic$/i, '').trim()
-        const params = new URLSearchParams({ track_name: cleanT, artist_name: cleanA })
-        if (opts.duration) params.append('duration', String(Math.round(opts.duration)))
 
-        const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: AbortSignal.timeout(6000) })
-        if (res.ok) {
-          const data = await res.json()
-          return {
-            success: true,
-            syncedLyrics: data.syncedLyrics || undefined,
-            plainLyrics: data.plainLyrics || undefined,
+        // 1. Direct get
+        try {
+          const params = new URLSearchParams({ track_name: cleanT, artist_name: cleanA })
+          if (opts.duration) params.append('duration', String(Math.round(opts.duration)))
+
+          const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: AbortSignal.timeout(5000) })
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.syncedLyrics || data?.plainLyrics) {
+              return {
+                success: true,
+                syncedLyrics: data.syncedLyrics || undefined,
+                plainLyrics: data.plainLyrics || undefined,
+              }
+            }
           }
-        }
+        } catch {}
+
+        // 2. Search fallback on lrclib.net
+        try {
+          const searchQ = encodeURIComponent(`${cleanA} ${cleanT}`)
+          const sRes = await fetch(`https://lrclib.net/api/search?q=${searchQ}`, { signal: AbortSignal.timeout(5000) })
+          if (sRes.ok) {
+            const list = await sRes.json()
+            if (Array.isArray(list) && list.length > 0) {
+              // Prefer one with syncedLyrics
+              const best = list.find((it: any) => Boolean(it.syncedLyrics)) || list[0]
+              if (best?.syncedLyrics || best?.plainLyrics) {
+                return {
+                  success: true,
+                  syncedLyrics: best.syncedLyrics || undefined,
+                  plainLyrics: best.plainLyrics || undefined,
+                }
+              }
+            }
+          }
+        } catch {}
       } catch {}
       return { success: false }
     },

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { Track, Playlist, BlurMaterial, AppLanguage } from '../types'
+import { Track, Playlist, BlurMaterial, AppLanguage, Album, FavoriteArtist } from '../types'
 import { translations } from '../i18n'
 
 export interface Settings {
@@ -21,6 +21,8 @@ export interface Settings {
   lastfmSessionKey: string
   // User library
   favorites: Track[]
+  favoriteAlbums: Album[]
+  favoriteArtists: FavoriteArtist[]
   playlists: Playlist[]
   recentlyPlayed: Track[]
 }
@@ -48,6 +50,8 @@ const DEFAULTS: Settings = {
   lastfmUsername: '',
   lastfmSessionKey: '',
   favorites: [],
+  favoriteAlbums: [],
+  favoriteArtists: [],
   playlists: [
     {
       id: 'pl-favorites-default',
@@ -66,6 +70,10 @@ interface SettingsCtx {
   resetExclusions: () => void
   toggleFavorite: (track: Track) => boolean
   isFavorite: (trackId: string) => boolean
+  toggleFavoriteAlbum: (album: Album) => boolean
+  isFavoriteAlbum: (albumId: string) => boolean
+  toggleFavoriteArtist: (artist: FavoriteArtist) => boolean
+  isFavoriteArtist: (artistName: string) => boolean
   createPlaylist: (name: string) => void
   deletePlaylist: (id: string) => void
   addTrackToPlaylist: (playlistId: string, track: Track) => void
@@ -136,6 +144,42 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return nowFav
   }, [])
 
+  const isFavoriteAlbum = useCallback((albumId: string) => {
+    return (settings.favoriteAlbums || []).some(a => a.id === albumId)
+  }, [settings.favoriteAlbums])
+
+  const toggleFavoriteAlbum = useCallback((album: Album) => {
+    let nowFav = false
+    setSettings(s => {
+      const list = s.favoriteAlbums || []
+      const exists = list.some(a => a.id === album.id)
+      nowFav = !exists
+      const newList = exists ? list.filter(a => a.id !== album.id) : [album, ...list]
+      return { ...s, favoriteAlbums: newList }
+    })
+    return nowFav
+  }, [])
+
+  const isFavoriteArtist = useCallback((artistName: string) => {
+    const clean = (artistName || '').trim().toLowerCase()
+    return (settings.favoriteArtists || []).some(a => (a.name || '').trim().toLowerCase() === clean)
+  }, [settings.favoriteArtists])
+
+  const toggleFavoriteArtist = useCallback((artist: FavoriteArtist) => {
+    let nowFav = false
+    const clean = (artist.name || '').trim().toLowerCase()
+    setSettings(s => {
+      const list = s.favoriteArtists || []
+      const exists = list.some(a => (a.name || '').trim().toLowerCase() === clean)
+      nowFav = !exists
+      const newList = exists
+        ? list.filter(a => (a.name || '').trim().toLowerCase() !== clean)
+        : [artist, ...list]
+      return { ...s, favoriteArtists: newList }
+    })
+    return nowFav
+  }, [])
+
   const createPlaylist = useCallback((name: string) => {
     if (!name.trim()) return
     const newPl: Playlist = {
@@ -197,6 +241,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         resetExclusions,
         toggleFavorite,
         isFavorite,
+        toggleFavoriteAlbum,
+        isFavoriteAlbum,
+        toggleFavoriteArtist,
+        isFavoriteArtist,
         createPlaylist,
         deletePlaylist,
         addTrackToPlaylist,

@@ -2,6 +2,12 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none;
+}
+
+*:focus, *:focus-visible {
+  outline: none !important;
 }
 
 html, body, #root {
@@ -13,6 +19,14 @@ html, body, #root {
   color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+input, textarea {
+  user-select: auto;
+  -webkit-user-select: auto;
 }
 
 ::-webkit-scrollbar {

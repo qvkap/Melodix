@@ -38,15 +38,15 @@ export const HomeView: React.FC<HomeViewProps> = ({ onPlay, onNavigate, onSearch
   const getTimeInfo = () => {
     const hour = new Date().getHours()
     if (hour >= 5 && hour < 12) {
-      return { greeting: t.goodMorning, icon: WbTwilightRounded, color: '#ffd54f', sub: 'Начните день с хорошей музыки' }
+      return { greeting: t.goodMorning || 'Доброе утро', icon: WbTwilightRounded, color: '#ffd54f', sub: 'Начните день с хорошей музыки' }
     }
-    if (hour >= 12 && hour < 18) {
-      return { greeting: t.goodAfternoon, icon: WbSunnyRounded, color: '#ffb74d', sub: t.recommended }
+    if (hour >= 12 && hour < 17) {
+      return { greeting: t.goodAfternoon || 'Добрый день', icon: WbSunnyRounded, color: '#ffb74d', sub: t.recommended }
     }
-    if (hour >= 18 && hour < 23) {
-      return { greeting: t.goodEvening, icon: NightsStayRounded, color: '#ce93d8', sub: 'Время расслабиться и послушать музыку' }
+    if (hour >= 17 && hour < 22) {
+      return { greeting: t.goodEvening || 'Добрый вечер', icon: NightsStayRounded, color: '#ce93d8', sub: 'Время расслабиться и послушать музыку' }
     }
-    return { greeting: t.goodNight, icon: BedtimeRounded, color: '#b39ddb', sub: 'Спокойная музыка для приятного отдыха' }
+    return { greeting: t.goodNight || 'Доброй ночи', icon: BedtimeRounded, color: '#b39ddb', sub: 'Спокойная музыка для приятного отдыха' }
   }
 
   const timeInfo = getTimeInfo()
