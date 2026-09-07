@@ -51,6 +51,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
   const isMobileScreen = useMediaQuery(theme.breakpoints.down('sm'))
   const isMobile = isMobileScreen || bottomOffset > 0
   const isAndroid = detectMobilePlatform() === 'android'
+  const isIos = detectMobilePlatform() === 'ios' || settings.mobileBarStyle === 'ios'
 
   const isFav = currentTrack ? isFavorite(currentTrack.id) : false
   const isExp = currentTrack ? (currentTrack.isExplicit || detectExplicit(currentTrack.title)) : false
@@ -70,13 +71,18 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         borderRadius: isMobile ? 4 : 0,
         background: isAndroid
           ? 'linear-gradient(135deg, rgba(34, 26, 48, 0.96) 0%, rgba(26, 20, 38, 0.98) 100%)'
+          : isIos
+          ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.1) 100%), rgba(16, 20, 32, 0.52)'
           : isMobile
           ? 'linear-gradient(0deg, rgba(22, 24, 34, 0.96) 0%, rgba(18, 20, 28, 0.98) 100%)'
           : 'linear-gradient(0deg, rgba(12, 14, 20, 0.98) 75%, rgba(12, 14, 20, 0.75) 100%)',
-        backdropFilter: 'blur(28px)',
-        border: 'none',
-        borderTop: isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.06)',
-        boxShadow: isMobile
+        backdropFilter: isIos ? 'blur(36px) saturate(210%) brightness(1.05)' : 'blur(28px)',
+        WebkitBackdropFilter: isIos ? 'blur(36px) saturate(210%) brightness(1.05)' : 'blur(28px)',
+        border: isIos ? '1px solid rgba(255, 255, 255, 0.25)' : 'none',
+        borderTop: isIos ? '1.5px solid rgba(255, 255, 255, 0.65)' : (isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.06)'),
+        boxShadow: isIos
+          ? '0 20px 48px -10px rgba(0, 0, 0, 0.7), inset 0 1.5px 1px rgba(255, 255, 255, 0.65), inset 0 -1px 1px rgba(255, 255, 255, 0.12)'
+          : isMobile
           ? '0 8px 32px rgba(0, 0, 0, 0.55)'
           : '0 -2px 16px rgba(0, 0, 0, 0.3)',
         px: { xs: 1.5, md: 3 },

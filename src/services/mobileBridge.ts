@@ -14,6 +14,11 @@ export function isElectron(): boolean {
 
 export function detectMobilePlatform(): 'ios' | 'android' | 'desktop' {
   if (typeof window === 'undefined') return 'desktop'
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('platform') === 'ios' || params.get('style') === 'ios' || params.has('ios')) return 'ios'
+    if (params.get('platform') === 'android' || params.get('style') === 'android' || params.has('android')) return 'android'
+  } catch {}
   // @ts-ignore
   if (window.Capacitor?.getPlatform) {
     // @ts-ignore
