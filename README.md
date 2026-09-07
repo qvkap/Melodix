@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Electron-30.0-47848F?style=for-the-badge&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.4-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License MIT" />
+  <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge" alt="License GPL v3" />
 </p>
 
 <p align="center">
@@ -122,7 +122,7 @@
 
 ## 📄 Лицензия
 
-Распространяется под лицензией **MIT**. Подробности в файле [LICENSE](LICENSE).
+Распространяется под лицензией **GNU General Public License v3.0 (GPLv3)**. Подробности в файле [LICENSE](LICENSE).
 
 <p align="center">
   Разработано с ❤️ для любителей качественной музыки и красивых интерфейсов.

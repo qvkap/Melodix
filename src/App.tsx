@@ -34,6 +34,8 @@ function PlayerApp() {
   const isSmallScreen = useMediaQuery('(max-width: 768px)')
   const detectedPlatform = React.useMemo(() => detectMobilePlatform(), [])
   const isMobile = isSmallScreen || detectedPlatform !== 'desktop'
+  const isBottomBarActive = isMobile && (settings.mobileNavMode || 'bottom') === 'bottom'
+  const isSidebarActive = !isMobile || settings.mobileNavMode === 'sidebar'
 
   const effectiveBarStyle: MobileBarStyle = React.useMemo(() => {
     if (settings.mobileBarStyle === 'ios') return 'ios'
@@ -42,7 +44,7 @@ function PlayerApp() {
   }, [settings.mobileBarStyle, detectedPlatform])
 
   const mobileBarHeight = effectiveBarStyle === 'ios' ? 86 : 76
-  const bottomOffset = isMobile ? mobileBarHeight : 0
+  const bottomOffset = isBottomBarActive ? mobileBarHeight : 0
 
   const handleSelectArtist = (artistName: string, avatarUrl?: string) => {
     setSelectedArtist({ name: artistName, avatar: avatarUrl })
@@ -260,24 +262,30 @@ function PlayerApp() {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', width: '100vw', bgcolor: '#0a0d14', overflow: 'hidden', position: 'relative' }}>
-      {/* Top TitleBar with 3 Lines Hamburger Menu - always clickable */}
-      <TitleBar onToggleSidebar={() => setIsSidebarOpen(prev => !prev)} />
+      {/* Top TitleBar: hamburger menu only shown if sidebar navigation is active */}
+      <TitleBar
+        onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+        showSidebarToggle={isSidebarActive}
+      />
 
       {/* Dynamic Background */}
       {renderBackground()}
 
-      {/* Sidebar: slides in/out smoothly and can be toggled on ANY screen */}
-      <Sidebar
-        currentView={view}
-        onView={(v) => {
-          setView(v)
-          setIsFullscreenLyrics(false)
-        }}
-        currentTrack={state.currentTrack}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onOpenFullscreenLyrics={() => setIsFullscreenLyrics(true)}
-      />
+      {/* Sidebar: only rendered when sidebar navigation is active */}
+      {isSidebarActive && (
+        <Sidebar
+          currentView={view}
+          onView={(v) => {
+            setView(v)
+            setIsFullscreenLyrics(false)
+            if (isMobile) setIsSidebarOpen(false)
+          }}
+          currentTrack={state.currentTrack}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          onOpenFullscreenLyrics={() => setIsFullscreenLyrics(true)}
+        />
+      )}
 
       {/* Main Content Area */}
       <Box
@@ -290,10 +298,10 @@ function PlayerApp() {
           display: 'flex',
           flexDirection: 'column',
           pt: '42px',
-          pb: isFullscreenLyrics ? 0 : (isMobile ? `${mobileBarHeight + (state.currentTrack ? 94 : 16)}px` : '76px'),
+          pb: isFullscreenLyrics ? 0 : (isBottomBarActive ? `${mobileBarHeight + (state.currentTrack ? 94 : 16)}px` : (state.currentTrack ? '100px' : '30px')),
           position: 'relative',
           zIndex: 1,
-          ml: isFullscreenLyrics ? 0 : (isMobile ? 0 : `${currentSidebarWidth}px`),
+          ml: isFullscreenLyrics ? 0 : (isBottomBarActive ? 0 : `${currentSidebarWidth}px`),
           minHeight: 0,
           minWidth: 0,
           transition: 'margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -417,7 +425,7 @@ function PlayerApp() {
         <PlayerBar
           state={state}
           howlRef={howlRef}
-          sidebarWidth={isMobile ? 0 : currentSidebarWidth}
+          sidebarWidth={isBottomBarActive ? 0 : currentSidebarWidth}
           bottomOffset={bottomOffset}
           onTogglePlay={togglePlay}
           onSeek={seek}
@@ -432,7 +440,7 @@ function PlayerApp() {
       )}
 
       {/* Mobile Bottom Navigation Bar (iOS Liquid Glass / Android Material You) */}
-      {isMobile && !isFullscreenLyrics && (
+      {isBottomBarActive && !isFullscreenLyrics && (
         <MobileBottomBar
           currentView={view}
           onView={(v) => {

@@ -3,7 +3,8 @@ import {
   Box, Typography, Button, TextField, InputAdornment, IconButton
 } from '@mui/material'
 import {
-  Search, Favorite, LibraryMusic, PlayArrow, History
+  Search, Favorite, LibraryMusic, PlayArrow, History,
+  WbSunnyRounded, NightsStayRounded, BedtimeRounded, WbTwilightRounded
 } from '@mui/icons-material'
 import { Track } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
@@ -17,23 +18,34 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({ onPlay, onNavigate, onSearchQuery }) => {
   const { t, settings } = useSettings()
-  const [username, setUsername] = useState('rorka')
+  const [username, setUsername] = useState('')
   const [quickInput, setQuickInput] = useState('')
 
   useEffect(() => {
     // Read real system username from Linux / Windows / macOS
     window.melodix?.getUsername?.().then(name => {
-      if (name) setUsername(name)
+      if (name && name.toLowerCase() !== 'melodix' && name.toLowerCase() !== 'melodix user') {
+        setUsername(name)
+      }
     }).catch(() => {})
   }, [])
 
-  const getGreeting = () => {
+  const getTimeInfo = () => {
     const hour = new Date().getHours()
-    if (hour >= 5 && hour < 12) return t.goodMorning
-    if (hour >= 12 && hour < 18) return t.goodAfternoon
-    if (hour >= 18 && hour < 23) return t.goodEvening
-    return t.goodNight
+    if (hour >= 5 && hour < 12) {
+      return { greeting: t.goodMorning, icon: WbTwilightRounded, color: '#ffd54f', sub: 'Начните день с хорошей музыки' }
+    }
+    if (hour >= 12 && hour < 18) {
+      return { greeting: t.goodAfternoon, icon: WbSunnyRounded, color: '#ffb74d', sub: t.recommended }
+    }
+    if (hour >= 18 && hour < 23) {
+      return { greeting: t.goodEvening, icon: NightsStayRounded, color: '#ce93d8', sub: 'Время расслабиться и послушать музыку' }
+    }
+    return { greeting: t.goodNight, icon: BedtimeRounded, color: '#b39ddb', sub: 'Спокойная музыка для приятного отдыха' }
   }
+
+  const timeInfo = getTimeInfo()
+  const TimeIcon = timeInfo.icon
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,25 +56,28 @@ export const HomeView: React.FC<HomeViewProps> = ({ onPlay, onNavigate, onSearch
 
   const displayName = username
     ? (username.charAt(0).toUpperCase() + username.slice(1))
-    : 'Rorka'
+    : ''
 
   return (
     <Box sx={{ p: { xs: 2.5, md: 4 }, pb: 16, maxWidth: 960, mx: 'auto', width: '100%', boxSizing: 'border-box' }}>
-      {/* Personalized Greeting Header with real OS Username: "Добрый день, $USER" */}
+      {/* Personalized Greeting Header with Time-of-day Icon ("Доброе утро", "Добрый день", etc.) */}
       <Box sx={{ mb: 3.5 }}>
-        <Typography
-          variant="h4"
-          sx={{
-            fontWeight: 800,
-            color: '#ffffff',
-            letterSpacing: '-0.02em',
-            mb: 0.5,
-          }}
-        >
-          {getGreeting()}, {displayName}
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-          {t.recommended}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.5 }}>
+          <TimeIcon sx={{ color: timeInfo.color, fontSize: { xs: 28, md: 34 } }} />
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 800,
+              color: '#ffffff',
+              letterSpacing: '-0.02em',
+              fontSize: { xs: '1.65rem', md: '2.1rem' },
+            }}
+          >
+            {displayName ? `${timeInfo.greeting}, ${displayName}` : timeInfo.greeting}
+          </Typography>
+        </Box>
+        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.65)', ml: { xs: 0.5, md: 5.5 } }}>
+          {timeInfo.sub}
         </Typography>
       </Box>
 

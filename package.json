@@ -6,6 +6,7 @@
     "name": "qvkap",
     "email": "qvkapp@gmail.com"
   },
+  "license": "GPL-3.0-or-later",
   "main": "dist-electron/main.js",
   "scripts": {
     "start": "electron . --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland",

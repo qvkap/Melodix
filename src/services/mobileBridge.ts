@@ -6,7 +6,7 @@
 
 import { Track, Album } from '../types'
 
-const SC_CLIENT_ID = '2t9loNfhwiJGGjhNQaquodqRutBpBm'
+let cachedScClientId = 'Pb72ranhoyt6gw7hM7TkzUItXlMWSNSo'
 
 export function isElectron(): boolean {
   return typeof window !== 'undefined' && Boolean(window.navigator?.userAgent?.includes('Electron'))
@@ -25,6 +25,34 @@ export function detectMobilePlatform(): 'ios' | 'android' | 'desktop' {
   if (/iPad|iPhone|iPod/.test(ua)) return 'ios'
   if (/Android/.test(ua)) return 'android'
   return 'desktop'
+}
+
+/**
+ * Dynamically resolves a valid SoundCloud client_id if the current one expires
+ */
+async function getSoundCloudClientId(): Promise<string> {
+  if (cachedScClientId) return cachedScClientId
+  try {
+    const res = await fetch('https://soundcloud.com', { signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      const html = await res.text()
+      const matches = html.match(/https:\/\/a-v2\.sndcdn\.com\/assets\/[0-9]+-[a-zA-Z0-9]+\.js/g) || []
+      for (const scriptUrl of matches.slice(0, 5)) {
+        try {
+          const sRes = await fetch(scriptUrl, { signal: AbortSignal.timeout(3000) })
+          if (sRes.ok) {
+            const code = await sRes.text()
+            const idMatch = code.match(/client_id[:=]["']([a-zA-Z0-9]{32})["']/)
+            if (idMatch?.[1]) {
+              cachedScClientId = idMatch[1]
+              return cachedScClientId
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  return 'Pb72ranhoyt6gw7hM7TkzUItXlMWSNSo'
 }
 
 export function initMobileBridge() {
@@ -60,96 +88,233 @@ export function initMobileBridge() {
       }
     },
 
-    getUsername: async () => 'Melodix User',
+    getUsername: async () => 'Melodix',
 
-    // Mobile Search (SoundCloud + Invidious fallback)
+    // Mobile Search: Parallel multi-source (Audius + iTunes + SoundCloud)
     searchMusic: async (query: string): Promise<{ success: boolean; results?: Track[]; error?: string }> => {
-      try {
-        const q = encodeURIComponent(query.trim())
-        // Try SoundCloud API first for fast, unblocked mobile streaming
-        const scRes = await fetch(
-          `https://api-v2.soundcloud.com/search/tracks?q=${q}&client_id=${SC_CLIENT_ID}&limit=25`,
-          { headers: { Accept: 'application/json' } }
-        )
+      const trimmed = query.trim()
+      if (!trimmed) return { success: true, results: [] }
+      const q = encodeURIComponent(trimmed)
 
-        if (scRes.ok) {
-          const data = await scRes.json()
-          if (Array.isArray(data.collection) && data.collection.length > 0) {
-            const tracks: Track[] = data.collection
-              .filter((item: any) => item && item.id && item.title)
-              .map((item: any) => {
+      const results: Track[] = []
+      const seenTitles = new Set<string>()
+
+      const addTrack = (track: Track) => {
+        const key = `${track.artist} - ${track.title}`.toLowerCase()
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key)
+          results.push(track)
+        }
+      }
+
+      // 1. Fetch from Audius API (Full-length free streaming tracks)
+      const audiusPromise = (async () => {
+        try {
+          const res = await fetch(`https://discoveryprovider.audius.co/v1/tracks/search?query=${q}&app_name=melodix`, {
+            signal: AbortSignal.timeout(6000),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const items = data?.data || []
+            for (const item of items) {
+              if (item?.id && item?.title) {
+                const artwork = item.artwork?.['480x480'] || item.artwork?.['1000x1000'] || item.artwork?.['150x150'] || ''
+                const streamUrl = `https://discoveryprovider.audius.co/v1/tracks/${item.id}/stream?app_name=melodix`
+                addTrack({
+                  id: `audius:${item.id}`,
+                  title: item.title,
+                  artist: item.user?.name || item.user?.handle || 'Artist',
+                  duration: Math.round(item.duration || 0),
+                  thumbnail: artwork,
+                  url: streamUrl,
+                })
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('[MobileBridge] Audius search notice:', err?.message)
+        }
+      })()
+
+      // 2. Fetch from iTunes Search API (Accurate catalog, HD 600x600 artwork, instant audio previews)
+      const itunesPromise = (async () => {
+        try {
+          const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=25`, {
+            signal: AbortSignal.timeout(6000),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const items = data?.results || []
+            for (const item of items) {
+              if (item?.trackName && item?.artistName) {
+                const thumb = (item.artworkUrl100 || '').replace('100x100bb', '600x600bb')
+                addTrack({
+                  id: `itunes:${item.trackId}`,
+                  title: item.trackName,
+                  artist: item.artistName,
+                  duration: Math.round((item.trackTimeMillis || 0) / 1000),
+                  thumbnail: thumb,
+                  url: item.previewUrl || '',
+                })
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('[MobileBridge] iTunes search notice:', err?.message)
+        }
+      })()
+
+      // 3. Fetch from SoundCloud API
+      const scPromise = (async () => {
+        try {
+          const clientId = await getSoundCloudClientId()
+          const res = await fetch(
+            `https://api-v2.soundcloud.com/search/tracks?q=${q}&client_id=${clientId}&limit=25`,
+            { signal: AbortSignal.timeout(6000) }
+          )
+          if (res.ok) {
+            const data = await res.json()
+            const items = data?.collection || []
+            for (const item of items) {
+              if (item?.id && item?.title) {
                 let thumb = item.artwork_url || item.user?.avatar_url || ''
-                if (thumb && thumb.includes('-large')) {
-                  thumb = thumb.replace('-large', '-t500x500')
-                }
-                return {
+                if (thumb.includes('-large')) thumb = thumb.replace('-large', '-t500x500')
+                addTrack({
                   id: `sc:${item.id}`,
                   title: item.title,
                   artist: item.user?.username || 'SoundCloud Artist',
                   duration: Math.round((item.duration || 0) / 1000),
                   thumbnail: thumb,
                   url: item.permalink_url || '',
-                }
-              })
-
-            if (tracks.length > 0) {
-              return { success: true, results: tracks }
+                })
+              }
             }
           }
+        } catch (err: any) {
+          console.warn('[MobileBridge] SoundCloud search notice:', err?.message)
         }
+      })()
 
-        // Fallback to Invidious public instance
-        const invRes = await fetch(`https://inv.tux.pizza/api/v1/search?q=${q}&type=video`, {
-          signal: AbortSignal.timeout(6000),
-        })
-        if (invRes.ok) {
-          const items = await invRes.json()
-          if (Array.isArray(items) && items.length > 0) {
-            const tracks: Track[] = items
-              .filter((v: any) => v.videoId && v.title)
-              .slice(0, 25)
-              .map((v: any) => ({
-                id: v.videoId,
-                title: v.title,
-                artist: v.author || 'YouTube Artist',
-                duration: v.lengthSeconds || 0,
-                thumbnail: v.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
-                url: `https://youtube.com/watch?v=${v.videoId}`,
-              }))
-            return { success: true, results: tracks }
-          }
-        }
-      } catch (err: any) {
-        console.warn('[MobileBridge] Search fallback notice:', err?.message)
+      await Promise.allSettled([audiusPromise, itunesPromise, scPromise])
+
+      if (results.length > 0) {
+        return { success: true, results }
       }
 
-      return { success: false, error: 'Не удалось выполнить поиск на мобильном устройстве' }
+      return { success: false, error: 'Ничего не найдено по вашему запросу' }
     },
 
-    searchAlbums: async (_query: string): Promise<{ success: boolean; results?: Album[]; error?: string }> => {
+    // Mobile Album Search: via iTunes catalog
+    searchAlbums: async (query: string): Promise<{ success: boolean; results?: Album[]; error?: string }> => {
+      try {
+        const q = encodeURIComponent(query.trim())
+        const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=album&limit=20`, {
+          signal: AbortSignal.timeout(6000),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const items = data?.results || []
+          const albums: Album[] = items
+            .filter((item: any) => item?.collectionId && item?.collectionName)
+            .map((item: any) => ({
+              id: String(item.collectionId),
+              title: item.collectionName,
+              artist: item.artistName || 'Various Artists',
+              year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined,
+              thumbnail: (item.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+              trackCount: item.trackCount || 0,
+            }))
+          return { success: true, results: albums }
+        }
+      } catch (err: any) {
+        console.warn('[MobileBridge] Album search notice:', err?.message)
+      }
       return { success: true, results: [] }
     },
 
-    getAlbumTracks: async (_id: string): Promise<{ success: boolean; tracks?: Track[]; error?: string }> => {
+    // Mobile Album Tracks: via iTunes lookup
+    getAlbumTracks: async (id: string): Promise<{ success: boolean; tracks?: Track[]; error?: string }> => {
+      try {
+        const cleanId = id.replace(/[^0-9]/g, '')
+        if (!cleanId) return { success: true, tracks: [] }
+        const res = await fetch(`https://itunes.apple.com/lookup?id=${cleanId}&entity=song`, {
+          signal: AbortSignal.timeout(6000),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const items = data?.results || []
+          const tracks: Track[] = items
+            .filter((item: any) => item.wrapperType === 'track')
+            .map((item: any) => ({
+              id: `itunes:${item.trackId}`,
+              title: item.trackName,
+              artist: item.artistName,
+              duration: Math.round((item.trackTimeMillis || 0) / 1000),
+              thumbnail: (item.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+              url: item.previewUrl || '',
+            }))
+          return { success: true, tracks }
+        }
+      } catch (err: any) {
+        console.warn('[MobileBridge] Album tracks lookup notice:', err?.message)
+      }
       return { success: true, tracks: [] }
     },
 
     // Mobile Stream URL resolution
-    getStreamUrl: async (trackIdOrUrl: string, _fallbackQuery?: string): Promise<{ success: boolean; url?: string; error?: string }> => {
+    getStreamUrl: async (trackIdOrUrl: string, fallbackQuery?: string): Promise<{ success: boolean; url?: string; error?: string }> => {
       try {
-        // 1. SoundCloud stream resolution
+        // 1. Direct audio stream URLs (e.g. Audius stream, iTunes preview, or direct media link)
+        if (
+          trackIdOrUrl.startsWith('http') &&
+          (trackIdOrUrl.includes('audius.co') ||
+           trackIdOrUrl.includes('audio-ssl.itunes.apple.com') ||
+           trackIdOrUrl.includes('.m4a') ||
+           trackIdOrUrl.includes('.mp3') ||
+           trackIdOrUrl.includes('/stream') ||
+           trackIdOrUrl.includes('.m3u8'))
+        ) {
+          return { success: true, url: trackIdOrUrl }
+        }
+
+        // 2. Audius track ID
+        if (trackIdOrUrl.startsWith('audius:')) {
+          const cleanId = trackIdOrUrl.replace(/^audius:/, '')
+          const audiusUrl = `https://discoveryprovider.audius.co/v1/tracks/${cleanId}/stream?app_name=melodix`
+          return { success: true, url: audiusUrl }
+        }
+
+        // 3. iTunes track ID with direct preview search
+        if (trackIdOrUrl.startsWith('itunes:')) {
+          const cleanId = trackIdOrUrl.replace(/^itunes:/, '')
+          try {
+            const lookup = await fetch(`https://itunes.apple.com/lookup?id=${cleanId}`, { signal: AbortSignal.timeout(5000) })
+            if (lookup.ok) {
+              const data = await lookup.json()
+              const trackItem = data?.results?.[0]
+              if (trackItem?.previewUrl) {
+                return { success: true, url: trackItem.previewUrl }
+              }
+            }
+          } catch {}
+        }
+
+        // 4. SoundCloud stream resolution
         if (trackIdOrUrl.startsWith('sc:') || trackIdOrUrl.includes('soundcloud.com')) {
           const cleanId = trackIdOrUrl.replace(/^sc:/, '')
-          const trackInfoRes = await fetch(`https://api-v2.soundcloud.com/tracks/${cleanId}?client_id=${SC_CLIENT_ID}`)
+          const clientId = await getSoundCloudClientId()
+          const trackInfoRes = await fetch(`https://api-v2.soundcloud.com/tracks/${cleanId}?client_id=${clientId}`, {
+            signal: AbortSignal.timeout(5000),
+          })
           if (trackInfoRes.ok) {
             const info = await trackInfoRes.json()
             const media = info?.media?.transcodings || []
             const prog = media.find((m: any) => m.format?.protocol === 'progressive')
-            const hls = media.find((m: any) => m.format?.protocol === 'hls')
-            const targetTranscoding = prog || hls
+            const hls = media.find((m: any) => m.format?.protocol === 'hls' || m.format?.protocol?.includes('hls'))
+            const target = prog || hls
 
-            if (targetTranscoding?.url) {
-              const streamRes = await fetch(`${targetTranscoding.url}?client_id=${SC_CLIENT_ID}`)
+            if (target?.url) {
+              const streamRes = await fetch(`${target.url}?client_id=${clientId}`, { signal: AbortSignal.timeout(5000) })
               if (streamRes.ok) {
                 const streamData = await streamRes.json()
                 if (streamData?.url) {
@@ -160,17 +325,35 @@ export function initMobileBridge() {
           }
         }
 
-        // 2. YouTube audio stream via Invidious
-        const cleanYtId = trackIdOrUrl.replace(/^https?:\/\/(?:www\.)?youtube\.com\/watch\?v=/, '')
-        const invRes = await fetch(`https://inv.tux.pizza/api/v1/videos/${cleanYtId}`, {
-          signal: AbortSignal.timeout(6000),
-        })
-        if (invRes.ok) {
-          const videoData = await invRes.json()
-          const audio = videoData?.adaptiveFormats?.find((f: any) => f.type?.includes('audio/'))
-          if (audio?.url) {
-            return { success: true, url: audio.url }
-          }
+        // 5. Fallback: Search track on Audius by title/artist query
+        if (fallbackQuery) {
+          const q = encodeURIComponent(fallbackQuery.trim())
+          try {
+            const audiusRes = await fetch(`https://discoveryprovider.audius.co/v1/tracks/search?query=${q}&app_name=melodix`, {
+              signal: AbortSignal.timeout(5000),
+            })
+            if (audiusRes.ok) {
+              const aData = await audiusRes.json()
+              const first = aData?.data?.[0]
+              if (first?.id) {
+                return { success: true, url: `https://discoveryprovider.audius.co/v1/tracks/${first.id}/stream?app_name=melodix` }
+              }
+            }
+          } catch {}
+
+          // Fallback to iTunes preview
+          try {
+            const itunesRes = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=1`, {
+              signal: AbortSignal.timeout(5000),
+            })
+            if (itunesRes.ok) {
+              const iData = await itunesRes.json()
+              const first = iData?.results?.[0]
+              if (first?.previewUrl) {
+                return { success: true, url: first.previewUrl }
+              }
+            }
+          } catch {}
         }
       } catch (err: any) {
         console.warn('[MobileBridge] Stream extraction notice:', err?.message)
@@ -187,7 +370,7 @@ export function initMobileBridge() {
         const params = new URLSearchParams({ track_name: cleanT, artist_name: cleanA })
         if (opts.duration) params.append('duration', String(Math.round(opts.duration)))
 
-        const res = await fetch(`https://lrclib.net/api/get?${params}`)
+        const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: AbortSignal.timeout(6000) })
         if (res.ok) {
           const data = await res.json()
           return {

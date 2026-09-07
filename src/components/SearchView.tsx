@@ -346,7 +346,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
     <Box sx={{ p: { xs: 2, sm: 3, md: 4, lg: 5 }, pb: 16, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       {/* Search Input Bar & Controls */}
       <Box sx={{ maxWidth: 1000, mx: 'auto', mb: 3 }}>
-        <Box sx={{ mb: 2, display: 'flex', gap: 1.2 }}>
+        <Box
+          component="form"
+          onSubmit={(e: React.FormEvent) => {
+            e.preventDefault()
+            doSearch(query)
+          }}
+          sx={{ mb: 2, display: 'flex', gap: 1.2 }}
+        >
           <TextField
             fullWidth
             value={query}
@@ -356,6 +363,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
             variant="outlined"
             size="small"
             autoFocus
+            inputProps={{
+              enterKeyHint: 'search',
+              type: 'search',
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">

@@ -7,9 +7,10 @@ import { isElectron } from '../services/mobileBridge'
 
 interface TitleBarProps {
   onToggleSidebar: () => void
+  showSidebarToggle?: boolean
 }
 
-export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
+export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar, showSidebarToggle = true }) => {
   const [updateState, setUpdateState] = useState<{
     status: string
     version?: string
@@ -44,32 +45,34 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onToggleSidebar }) => {
     >
       {/* Left: Sidebar toggle (3 полоски) + Logo */}
       <Box display="flex" alignItems="center" gap={1} sx={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' }}>
-        <Tooltip title="Скрыть/показать меню (☰)">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onToggleSidebar()
-            }}
-            sx={{
-              color: '#ffffff',
-              bgcolor: 'rgba(255, 255, 255, 0.08)',
-              borderRadius: 2,
-              p: 0.7,
-              cursor: 'pointer',
-              '&:hover': {
-                bgcolor: 'rgba(255, 255, 255, 0.2)',
-                transform: 'scale(1.05)'
-              },
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <MenuIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
+        {showSidebarToggle && (
+          <Tooltip title="Скрыть/показать меню (☰)">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onToggleSidebar()
+              }}
+              sx={{
+                color: '#ffffff',
+                bgcolor: 'rgba(255, 255, 255, 0.08)',
+                borderRadius: 2,
+                p: 0.7,
+                cursor: 'pointer',
+                '&:hover': {
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  transform: 'scale(1.05)'
+                },
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <MenuIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        )}
 
-        <Box display="flex" alignItems="center" gap={1} sx={{ userSelect: 'none', ml: 0.5 }}>
+        <Box display="flex" alignItems="center" gap={1} sx={{ userSelect: 'none', ml: showSidebarToggle ? 0.5 : 1 }}>
           <Box
             component="img"
             src="./icon.png"

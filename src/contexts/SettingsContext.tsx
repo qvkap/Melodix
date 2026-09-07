@@ -12,6 +12,7 @@ export interface Settings {
   accentColor: string
   exclusionWords: string[]
   mobileBarStyle: 'auto' | 'ios' | 'android'
+  mobileNavMode: 'bottom' | 'sidebar'
   // Last.fm
   lastfmEnabled: boolean
   lastfmApiKey: string
@@ -40,6 +41,7 @@ const DEFAULTS: Settings = {
     'Topic', 'Lyrics', 'Audio'
   ],
   mobileBarStyle: 'auto',
+  mobileNavMode: 'bottom',
   lastfmEnabled: false,
   lastfmApiKey: '',
   lastfmSecret: '',
