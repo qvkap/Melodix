@@ -21,7 +21,13 @@
 </p>
 
 <p align="center">
-  <img src="Screenshoot.jpg" alt="Melodix Screenshot" width="92%" style="border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); max-width: 1000px;" />
+  <img src="Screenshoot.jpg" alt="Melodix Desktop Screenshot" width="92%" style="border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); max-width: 1000px;" />
+</p>
+
+<p align="center">
+  <img src="screenshot_mobile.jpg" alt="Melodix Mobile Home" width="29%" style="border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 4px; max-width: 280px;" />
+  <img src="screenshot_mobile_player.jpg" alt="Melodix Mobile Player Artwork" width="29%" style="border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 4px; max-width: 280px;" />
+  <img src="screenshot_mobile_lyrics.jpg" alt="Melodix Mobile Lyrics" width="29%" style="border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 4px; max-width: 280px;" />
 </p>
 
 ---

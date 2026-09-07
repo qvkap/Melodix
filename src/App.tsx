@@ -25,8 +25,8 @@ import { LocalView } from './components/LocalView'
 function PlayerApp() {
   const [view, setView] = useState<AppView>('home')
   const [selectedArtist, setSelectedArtist] = useState<{ name: string; avatar?: string } | null>(null)
-  const [isFullscreenLyrics, setIsFullscreenLyrics] = useState(false)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isFullscreenLyrics, setIsFullscreenLyrics] = useState(() => window.location.search.includes('demo=lyrics') || window.location.search.includes('demo=1'))
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => !window.location.search.includes('demo'))
   const [searchQuery, setSearchQuery] = useState('')
 
   const { settings } = useSettings()
@@ -53,13 +53,80 @@ function PlayerApp() {
   }
 
   const {
-    state, lyrics, howlRef,
+    state, setState, lyrics, setLyrics, howlRef,
     loadTrack, togglePlay, seek, seekToTime,
     setVolume, toggleMute,
     skipNext, skipPrev,
     setQueue, addToQueue,
     toggleShuffle, cycleRepeat,
   } = usePlayer()
+
+  // Demo state for screenshot capture
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const demo = params.get('demo')
+    if (demo === 'lyrics' || demo === '1') {
+      const demoTrack: Track = {
+        id: 'demo-nyan',
+        title: 'У батарей [Official Audio]',
+        artist: 'nyan.mp3',
+        album: 'У батарей',
+        duration: 182,
+        thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/8d/c8/4b/8dc84b57-e684-0c95-4516-55d3235f2687/cover.jpg/1000x1000bb.jpg',
+      }
+      const demoLines = [
+        { time: 0, text: '• • •' },
+        { time: 5, text: 'У батарей как на жаре' },
+        { time: 10, text: 'Тёплые ночи в январе' },
+        { time: 15, text: 'Заварю чай, ты постучал' },
+        { time: 20, text: 'А я иду открывать дверь' },
+        { time: 25, text: 'У батарей как на жаре' },
+        { time: 30, text: 'Тёплые ночи в январе' },
+        { time: 35, text: 'Я так скучал... (Мяу, nyan.mp3)' },
+        { time: 40, text: 'Твой телефонный номер не отвечает больше (А-а-а)' },
+        { time: 48, text: 'Я так хотел бы рядом быть с тобою этой ночью (Ночью)' },
+        { time: 54, text: 'Новый год наступил (Ступил), по привычке купил' },
+        { time: 60, text: 'Тебе подарок, хотя, вряд ли всё будет как раньше' },
+        { time: 66, text: 'Оба на год стали старше' },
+        { time: 72, text: 'У тебя бизнес, продажи' },
+        { time: 78, text: 'Время другое, пейзажи' },
+      ]
+      setState(s => ({
+        ...s,
+        currentTrack: demoTrack,
+        isPlaying: true,
+        progress: 48 / 182,
+        currentTime: 48,
+        duration: 182,
+      }))
+      setLyrics({
+        lines: demoLines,
+        plain: '',
+        activeLine: 9,
+        loading: false,
+      })
+      setIsSidebarOpen(false)
+      setIsFullscreenLyrics(true)
+    } else if (demo === 'mobile') {
+      const demoTrack: Track = {
+        id: 'demo-nyan',
+        title: 'У батарей [Official Audio]',
+        artist: 'nyan.mp3',
+        album: 'У батарей',
+        duration: 182,
+        thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/8d/c8/4b/8dc84b57-e684-0c95-4516-55d3235f2687/cover.jpg/1000x1000bb.jpg',
+      }
+      setState(s => ({
+        ...s,
+        currentTrack: demoTrack,
+        isPlaying: true,
+        progress: 48 / 182,
+        currentTime: 48,
+        duration: 182,
+      }))
+      setIsFullscreenLyrics(false)
+    }
+  }, [setState, setLyrics])
 
   // Playing a track from anywhere opens the immersive Lyrics + Artwork view
   const handlePlay = (track: Track, results?: Track[]) => {
@@ -116,8 +183,9 @@ function PlayerApp() {
     ? getThumbnail(state.currentTrack)
     : ''
 
-  // Effective sidebar width
-  const currentSidebarWidth = isSidebarOpen ? SIDEBAR_WIDTH : 0
+  // Effective sidebar width (hidden during fullscreen lyrics)
+  const isSidebarVisible = isSidebarActive && isSidebarOpen && !isFullscreenLyrics
+  const currentSidebarWidth = isSidebarVisible ? SIDEBAR_WIDTH : 0
 
   // Background style based on chosen blur material
   const renderBackground = () => {
@@ -281,7 +349,7 @@ function PlayerApp() {
             if (isMobile) setIsSidebarOpen(false)
           }}
           currentTrack={state.currentTrack}
-          isOpen={isSidebarOpen}
+          isOpen={isSidebarVisible}
           onClose={() => setIsSidebarOpen(false)}
           onOpenFullscreenLyrics={() => setIsFullscreenLyrics(true)}
         />

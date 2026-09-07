@@ -527,7 +527,9 @@ export function usePlayer() {
 
   return {
     state,
+    setState,
     lyrics,
+    setLyrics,
     howlRef,
     loadTrack,
     togglePlay,

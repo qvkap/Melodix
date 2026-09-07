@@ -65,7 +65,13 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   // Toggle lyrics display ("T" button):
   // On mobile phones: 2 exclusive modes (Mode 1: Only Artwork, Mode 2: Only Lyrics)
   // On desktop: side-by-side or centered
-  const [showLyrics, setShowLyrics] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true))
+  const [showLyrics, setShowLyrics] = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.search.includes('lyrics_only')) return true
+      return window.innerWidth > 768
+    }
+    return true
+  })
 
   const isFav = playerState.currentTrack ? isFavorite(playerState.currentTrack.id) : false
   const isExp = playerState.currentTrack ? (playerState.currentTrack.isExplicit || detectExplicit(playerState.currentTrack.title)) : false
