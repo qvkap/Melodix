@@ -168,6 +168,39 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
     window.addEventListener('mouseup', onMouseUp)
   }
 
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDragging(true)
+    const touch = e.touches[0]
+    if (!progressTrackRef.current) return
+    const rect = progressTrackRef.current.getBoundingClientRect()
+    const pct = Math.min(Math.max((touch.clientX - rect.left) / rect.width, 0), 1)
+    if (progressFillRef.current) {
+      progressFillRef.current.style.width = `${pct * 100}%`
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!progressTrackRef.current) return
+    const touch = e.touches[0]
+    const rect = progressTrackRef.current.getBoundingClientRect()
+    const pct = Math.min(Math.max((touch.clientX - rect.left) / rect.width, 0), 1)
+    if (progressFillRef.current) {
+      progressFillRef.current.style.width = `${pct * 100}%`
+    }
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDragging(false)
+    if (!progressTrackRef.current) return
+    const touch = e.changedTouches[0]
+    const rect = progressTrackRef.current.getBoundingClientRect()
+    const pct = Math.min(Math.max((touch.clientX - rect.left) / rect.width, 0), 1)
+    if (progressFillRef.current) {
+      progressFillRef.current.style.width = `${pct * 100}%`
+    }
+    onSeek(pct)
+  }
+
   const RepeatIcon = playerState.repeat === 'one' ? RepeatOne : Repeat
 
   return (
@@ -374,6 +407,10 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             onMouseDown={handleProgressBarMouseDown}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
             sx={{
               width: '100%',
               maxWidth: { xs: 260, sm: 310, md: showLyrics ? 350 : 420, lg: showLyrics ? 390 : 460 },
@@ -382,6 +419,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               alignItems: 'center',
               cursor: 'pointer',
               position: 'relative',
+              touchAction: 'none',
               transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
             }}
           >
@@ -691,6 +729,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                     key={i}
                     ref={isActive ? activeLineRef : null}
                     onClick={(e) => {
+                      e.preventDefault()
                       e.stopPropagation()
                       onSeekToTime(line.time)
                       e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -746,6 +785,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   key={i}
                   ref={isActive ? activeLineRef : null}
                   onClick={(e) => {
+                    e.preventDefault()
                     e.stopPropagation()
                     onSeekToTime(line.time)
                     e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })

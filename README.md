@@ -2,7 +2,7 @@
   <img src="public/logo.png" alt="Melodix Logo" width="128" height="128" style="border-radius: 28px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);" />
 </p>
 
-<h1 align="center">Melodix (v1.0.0 Beta)</h1>
+<h1 align="center">Melodix (v1.1.0)</h1>
 
 <p align="center">
   <b>Современный, сверхбыстрый и эстетичный кроссплатформенный музыкальный плеер нового поколения.</b><br/>
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0_beta-8a2be2?style=for-the-badge" alt="Version 1.0.0 Beta" />
+  <img src="https://img.shields.io/badge/version-1.1.0-8a2be2?style=for-the-badge" alt="Version 1.1.0" />
   <img src="https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android" />
   <img src="https://img.shields.io/badge/iOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="iOS" />
   <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux" />
@@ -30,6 +30,19 @@
   <img src="screenshot_mobile_player.jpg" alt="Melodix Mobile Player Artwork" width="23%" style="border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 4px; max-width: 240px;" />
   <img src="screenshot_mobile_lyrics.jpg" alt="Melodix Mobile Lyrics" width="23%" style="border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); margin: 4px; max-width: 240px;" />
 </p>
+
+---
+
+## 🌟 Что нового в версии 1.1.0
+
+- 🍏 **Настоящий Apple Liquid Glass на iOS**: полностью переработанная ультра-прозрачная матовая стеклянная капсула в стиле iOS 18 с 4 сбалансированными нативными вкладками (Главная, Поиск, Плейлисты, Настройки), субпиксельной границей и живым системным акцентом.
+- 🎨 **Material You Dynamic Color на Android**: нижняя панель навигации автоматически адаптируется под системную цветовую палитру Android с динамической M3 поверхностью и pill-индикатором активной вкладки.
+- 🎚️ **Сенсорное перетаскивание ползунка на смартфонах**: полноценная поддержка touch-событий (`touch-action: none`, `onTouchStart`, `onTouchMove`, `onTouchEnd`) для мгновенной перемотки как в мини-плеере, так и в полноэкранном режиме.
+- 🔁 **Исправлен повтор одного трека**: режим «Повтор трека» перезапускает трек мгновенно без зависаний, сбоев буферизации и блокировок мобильного автоплея.
+- 🎯 **Исправлен баг первой строчки текста**: нажатие на первую строку синхронизированного текста (`0:00`) теперь плавно перематывает на начало песни без ошибочного перехода на следующий трек.
+- 🎧 **Полная длительность треков на мобильных**: исключены 30-секундные превью iTunes, реализовано автоматическое извлечение полных аудиопотоков через SoundCloud (с фильтрацией Go+ сниппетов) и Audius.
+- 🚀 **Оптимизация производительности для ПК**: аппаратное 3D-ускорение фонового размытия (`transform3d`, изоляция слоёв рендеринга `contain: paint`), плавные 60 FPS анимации и сниженная нагрузка на GPU.
+- 📱 **Фирменные иконки для всех операционных систем**: официальный логотип Melodix установлен для Android (все плотности mipmap и adaptive icon), iOS (`AppIcon.appiconset`), Windows (`.ico`), Linux и macOS.
 
 ---
 

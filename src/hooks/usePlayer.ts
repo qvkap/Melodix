@@ -355,17 +355,33 @@ export function usePlayer() {
     const h = howlRef.current
     if (h) {
       const cur = h.seek()
-      const dur = h.duration()
-      // Guard against false/premature stream disconnects on mobile:
-      // If audio supposedly ended but less than 12 seconds played while track length is > 30s, ignore
-      if (typeof cur === 'number' && typeof dur === 'number' && dur > 30 && cur < 12) {
-        console.warn('Ignoring premature stream end at', cur, 'of', dur)
+      const dur = h.duration() || currentTrack.duration || 0
+      // Guard against false/premature stream disconnects on mobile & seek to 0:
+      // If audio supposedly ended but position is far from track duration, do NOT skip!
+      if (typeof cur === 'number' && dur > 5 && cur < dur - 2.5) {
+        console.warn('[Melodix Player] Premature stream end ignored: cur =', cur, 'dur =', dur)
+        if (!h.playing()) {
+          try { h.play() } catch {}
+        }
         return
       }
     }
 
-    // If Repeat One: restart current track completely
+    // If Repeat One: rewind and replay existing audio cleanly (prevents mobile autoplay lock and hang)
     if (repeat === 'one') {
+      if (h) {
+        try {
+          h.seek(0)
+          h.play()
+          setState(s => ({ ...s, isPlaying: true, currentTime: 0, progress: 0 }))
+          if (!rafRef.current) {
+            rafRef.current = requestAnimationFrame(tick)
+          }
+          return
+        } catch (e) {
+          console.warn('[Melodix Player] Repeat one seek error, falling back to reload:', e)
+        }
+      }
       loadTrack(currentTrack)
       return
     }
@@ -388,7 +404,7 @@ export function usePlayer() {
       }
       loadTrack(next)
     }
-  }, [loadTrack])
+  }, [loadTrack, tick])
 
   const togglePlay = () => {
     const h = howlRef.current
@@ -435,11 +451,12 @@ export function usePlayer() {
     if (!h) return
 
     const d = h.duration() || stateRef.current.currentTrack?.duration || 0
-    // CRITICAL: Clamp seconds so it NEVER seeks beyond the end of the loaded audio!
-    // Seeking past duration in HTML5 audio causes an instant 'ended' event, which skips to the next track!
+    // CRITICAL: Clamp seconds so it NEVER seeks beyond duration (causes instant 'ended' skip)
+    // and never exactly 0.000s on mobile (can trigger ended event / reset on mobile audio elements)
+    const safeSeconds = Math.max(0.05, seconds)
     const clampedSeconds = d > 0
-      ? Math.min(Math.max(0, seconds), Math.max(0, d - 0.6))
-      : Math.max(0, seconds)
+      ? Math.min(safeSeconds, Math.max(0.05, d - 0.6))
+      : safeSeconds
 
     try {
       h.seek(clampedSeconds)

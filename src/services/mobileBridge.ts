@@ -159,7 +159,7 @@ export function initMobileBridge() {
                   artist: item.artistName,
                   duration: Math.round((item.trackTimeMillis || 0) / 1000),
                   thumbnail: thumb,
-                  url: item.previewUrl || '',
+                  url: '', // Do NOT use 30s iTunes preview snippet
                 })
               }
             }
@@ -256,7 +256,7 @@ export function initMobileBridge() {
               artist: item.artistName,
               duration: Math.round((item.trackTimeMillis || 0) / 1000),
               thumbnail: (item.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
-              url: item.previewUrl || '',
+              url: '', // Do NOT use 30s preview snippet
             }))
           return { success: true, tracks }
         }
@@ -266,13 +266,14 @@ export function initMobileBridge() {
       return { success: true, tracks: [] }
     },
 
-    // Mobile Stream URL resolution
+    // Mobile Stream URL resolution (strictly full-length tracks, never 30s clips)
     getStreamUrl: async (trackIdOrUrl: string, fallbackQuery?: string): Promise<{ success: boolean; url?: string; error?: string }> => {
       try {
         // 1. Direct full-length audio stream URLs (Audius or full media stream)
         if (
           trackIdOrUrl.startsWith('http') &&
           !trackIdOrUrl.includes('audio-ssl.itunes.apple.com') &&
+          !trackIdOrUrl.includes('/preview/') &&
           (trackIdOrUrl.includes('audius.co') ||
            trackIdOrUrl.includes('sndcdn.com') ||
            trackIdOrUrl.includes('.mp3') ||
@@ -281,33 +282,41 @@ export function initMobileBridge() {
           return { success: true, url: trackIdOrUrl }
         }
 
-        // 2. Resolve Full-length track via SoundCloud for any track or fallback query
-        const queryToSearch = fallbackQuery || (trackIdOrUrl.startsWith('itunes:') ? undefined : trackIdOrUrl)
+        const queryToSearch = fallbackQuery || (trackIdOrUrl.startsWith('itunes:') || trackIdOrUrl.startsWith('http') ? undefined : trackIdOrUrl)
+
+        // 2. Resolve Full-length track via SoundCloud (filter out 30s snipped tracks)
         if (queryToSearch) {
           try {
             const clientId = await getSoundCloudClientId()
             const scRes = await fetch(
-              `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(queryToSearch.trim())}&client_id=${clientId}&limit=3`,
-              { signal: AbortSignal.timeout(4500) }
+              `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(queryToSearch.trim())}&client_id=${clientId}&limit=12`,
+              { signal: AbortSignal.timeout(5000) }
             )
             if (scRes.ok) {
               const scData = await scRes.json()
-              const topTrack = scData?.collection?.[0]
-              if (topTrack?.id) {
-                const media = topTrack.media?.transcodings || []
-                const prog = media.find((m: any) => m.format?.protocol === 'progressive')
-                const hls = media.find((m: any) => m.format?.protocol === 'hls' || m.format?.protocol?.includes('hls'))
-                const target = prog || hls
-                if (target?.url) {
-                  const sRes = await fetch(`${target.url}?client_id=${clientId}`, { signal: AbortSignal.timeout(4500) })
+              const collection = scData?.collection || []
+              for (const item of collection) {
+                const media = item?.media?.transcodings || []
+                // Strictly filter for non-snipped, full-length audio transcodings
+                const fullTranscoding = media.find((m: any) =>
+                  !m.snipped &&
+                  !m.url?.includes('/preview/') &&
+                  (m.format?.protocol === 'progressive' || m.format?.protocol === 'hls' || m.format?.protocol?.includes('hls'))
+                )
+                if (fullTranscoding?.url) {
+                  const sRes = await fetch(`${fullTranscoding.url}?client_id=${clientId}`, { signal: AbortSignal.timeout(4500) })
                   if (sRes.ok) {
                     const sData = await sRes.json()
-                    if (sData?.url) return { success: true, url: sData.url }
+                    if (sData?.url && !sData.url.includes('/preview/')) {
+                      return { success: true, url: sData.url }
+                    }
                   }
                 }
               }
             }
-          } catch {}
+          } catch (e: any) {
+            console.warn('[MobileBridge] SoundCloud search error:', e?.message)
+          }
         }
 
         // 3. Audius track ID
@@ -317,7 +326,7 @@ export function initMobileBridge() {
           return { success: true, url: audiusUrl }
         }
 
-        // 4. SoundCloud track ID
+        // 4. SoundCloud track ID (with snipped check)
         if (trackIdOrUrl.startsWith('sc:') || trackIdOrUrl.includes('soundcloud.com')) {
           const cleanId = trackIdOrUrl.replace(/^sc:/, '')
           const clientId = await getSoundCloudClientId()
@@ -327,12 +336,14 @@ export function initMobileBridge() {
           if (trackInfoRes.ok) {
             const info = await trackInfoRes.json()
             const media = info?.media?.transcodings || []
-            const prog = media.find((m: any) => m.format?.protocol === 'progressive')
-            const hls = media.find((m: any) => m.format?.protocol === 'hls' || m.format?.protocol?.includes('hls'))
-            const target = prog || hls
+            const fullTranscoding = media.find((m: any) =>
+              !m.snipped &&
+              !m.url?.includes('/preview/') &&
+              (m.format?.protocol === 'progressive' || m.format?.protocol === 'hls' || m.format?.protocol?.includes('hls'))
+            ) || media.find((m: any) => m.format?.protocol === 'progressive' || m.format?.protocol === 'hls')
 
-            if (target?.url) {
-              const streamRes = await fetch(`${target.url}?client_id=${clientId}`, { signal: AbortSignal.timeout(5000) })
+            if (fullTranscoding?.url) {
+              const streamRes = await fetch(`${fullTranscoding.url}?client_id=${clientId}`, { signal: AbortSignal.timeout(5000) })
               if (streamRes.ok) {
                 const streamData = await streamRes.json()
                 if (streamData?.url) {
@@ -343,23 +354,26 @@ export function initMobileBridge() {
           }
         }
 
-        // 5. iTunes preview as final audio fallback
-        if (trackIdOrUrl.startsWith('itunes:')) {
-          const cleanId = trackIdOrUrl.replace(/^itunes:/, '')
+        // 5. Audius Search Fallback for full-length tracks
+        if (queryToSearch) {
           try {
-            const lookup = await fetch(`https://itunes.apple.com/lookup?id=${cleanId}`, { signal: AbortSignal.timeout(4000) })
-            if (lookup.ok) {
-              const data = await lookup.json()
-              const trackItem = data?.results?.[0]
-              if (trackItem?.previewUrl) {
-                return { success: true, url: trackItem.previewUrl }
+            const aRes = await fetch(
+              `https://discoveryprovider.audius.co/v1/tracks/search?query=${encodeURIComponent(queryToSearch.trim())}&app_name=melodix`,
+              { signal: AbortSignal.timeout(4500) }
+            )
+            if (aRes.ok) {
+              const aData = await aRes.json()
+              const first = aData?.data?.[0]
+              if (first?.id) {
+                const audiusUrl = `https://discoveryprovider.audius.co/v1/tracks/${first.id}/stream?app_name=melodix`
+                return { success: true, url: audiusUrl }
               }
             }
           } catch {}
         }
 
-        // 6. Direct URL fallback
-        if (trackIdOrUrl.startsWith('http')) {
+        // 6. Direct full URL fallback (excluding 30s itunes snippets)
+        if (trackIdOrUrl.startsWith('http') && !trackIdOrUrl.includes('audio-ssl.itunes.apple.com')) {
           return { success: true, url: trackIdOrUrl }
         }
       } catch (err: any) {

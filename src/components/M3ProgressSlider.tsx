@@ -149,6 +149,38 @@ export const M3ProgressSlider: React.FC<M3ProgressSliderProps> = ({
     if (hoverLabelRef.current) hoverLabelRef.current.style.opacity = '0'
   }
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (disabled) return
+    isDragging.current = true
+    const touch = e.touches[0]
+    const p = getPct(touch.clientX)
+    applyVisual(p)
+    if (thumbRef.current) {
+      thumbRef.current.style.opacity = '1'
+      thumbRef.current.style.transform = 'translate(-50%, -50%) scale(1.15)'
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging.current) return
+    const touch = e.touches[0]
+    const p = getPct(touch.clientX)
+    applyVisual(p)
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isDragging.current) return
+    isDragging.current = false
+    const touch = e.changedTouches[0]
+    const p = getPct(touch.clientX)
+    applyVisual(p)
+    onSeek(p)
+    if (thumbRef.current) {
+      thumbRef.current.style.opacity = '0'
+      thumbRef.current.style.transform = 'translate(-50%, -50%) scale(1)'
+    }
+  }
+
   return (
     <Box
       ref={containerRef}
@@ -156,6 +188,10 @@ export const M3ProgressSlider: React.FC<M3ProgressSliderProps> = ({
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       sx={{
         position: 'relative',
         height: 20,
@@ -163,6 +199,7 @@ export const M3ProgressSlider: React.FC<M3ProgressSliderProps> = ({
         alignItems: 'center',
         cursor: disabled ? 'default' : 'pointer',
         userSelect: 'none',
+        touchAction: 'none',
         px: 0,
       }}
     >
