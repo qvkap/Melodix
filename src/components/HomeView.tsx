@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Box, Typography, Button, TextField, InputAdornment, IconButton
+  Box, Typography, Button, TextField, InputAdornment, IconButton,
+  useTheme, useMediaQuery
 } from '@mui/material'
 import {
   Search, Favorite, LibraryMusic, PlayArrow, History,
@@ -9,6 +10,7 @@ import {
 import { Track } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { TrackCard } from './TrackCard'
+import { detectMobilePlatform } from '../services/mobileBridge'
 
 interface HomeViewProps {
   onPlay: (track: Track, results: Track[]) => void
@@ -18,6 +20,9 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({ onPlay, onNavigate, onSearchQuery }) => {
   const { t, settings } = useSettings()
+  const theme = useTheme()
+  const isMobileScreen = useMediaQuery(theme.breakpoints.down('sm'))
+  const isMobileDevice = isMobileScreen || detectMobilePlatform() !== 'desktop'
   const [username, setUsername] = useState('')
   const [quickInput, setQuickInput] = useState('')
 
@@ -54,7 +59,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onPlay, onNavigate, onSearch
     }
   }
 
-  const displayName = username
+  // Never display username on mobile devices ("убери юзер с главного экрана для мобильныйх телеофнов")
+  const displayName = (!isMobileDevice && username)
     ? (username.charAt(0).toUpperCase() + username.slice(1))
     : ''
 

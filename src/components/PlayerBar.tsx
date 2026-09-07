@@ -1,5 +1,5 @@
 import React, { useRef } from 'react'
-import { Box, IconButton, Typography, Tooltip, Slider } from '@mui/material'
+import { Box, IconButton, Typography, Tooltip, Slider, useTheme, useMediaQuery } from '@mui/material'
 import {
   PlayArrow, Pause, SkipPrevious, SkipNext,
   VolumeUp, VolumeOff, Shuffle, Repeat, RepeatOne,
@@ -12,6 +12,7 @@ import { M3ProgressSlider } from './M3ProgressSlider'
 import { useSettings } from '../contexts/SettingsContext'
 import { ExplicitBadge } from './ExplicitBadge'
 import { MarqueeText } from './MarqueeText'
+import { detectMobilePlatform } from '../services/mobileBridge'
 
 interface PlayerBarProps {
   state: PlayerState
@@ -46,6 +47,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 }) => {
   const { currentTrack, isPlaying, volume, isMuted, shuffle, repeat } = state
   const { settings, isFavorite, toggleFavorite } = useSettings()
+  const theme = useTheme()
+  const isMobileScreen = useMediaQuery(theme.breakpoints.down('sm'))
+  const isMobile = isMobileScreen || bottomOffset > 0
+  const isAndroid = detectMobilePlatform() === 'android'
 
   const isFav = currentTrack ? isFavorite(currentTrack.id) : false
   const isExp = currentTrack ? (currentTrack.isExplicit || detectExplicit(currentTrack.title)) : false
@@ -56,17 +61,34 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     <Box
       sx={{
         position: 'fixed',
-        bottom: bottomOffset,
-        left: sidebarWidth,
-        right: 0,
+        bottom: isMobile ? (bottomOffset > 0 ? bottomOffset + 8 : 10) : bottomOffset,
+        left: isMobile ? 10 : sidebarWidth,
+        right: isMobile ? 10 : 0,
+        maxWidth: isMobile ? 600 : 'none',
+        mx: isMobile ? 'auto' : 0,
         zIndex: 1100,
-        background: 'linear-gradient(0deg, rgba(12, 14, 20, 0.98) 75%, rgba(12, 14, 20, 0.75) 100%)',
-        backdropFilter: 'blur(30px)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-        px: { xs: 2, md: 3 },
-        pt: 0.8,
-        pb: 1.8,
-        transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        borderRadius: isMobile ? 3.5 : 0,
+        background: isAndroid
+          ? 'linear-gradient(135deg, rgba(36, 28, 50, 0.97) 0%, rgba(24, 18, 36, 0.98) 100%)'
+          : isMobile
+          ? 'linear-gradient(0deg, rgba(28, 30, 44, 0.97) 75%, rgba(20, 22, 34, 0.92) 100%)'
+          : 'linear-gradient(0deg, rgba(12, 14, 20, 0.98) 75%, rgba(12, 14, 20, 0.75) 100%)',
+        backdropFilter: 'blur(32px)',
+        border: isMobile
+          ? (isAndroid ? '1.5px solid rgba(208, 188, 255, 0.32)' : '1.5px solid rgba(255, 255, 255, 0.18)')
+          : 'none',
+        borderTop: isMobile
+          ? (isAndroid ? '1.5px solid rgba(208, 188, 255, 0.4)' : '1.5px solid rgba(255, 255, 255, 0.22)')
+          : '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: isMobile
+          ? (isAndroid
+              ? '0 10px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(208, 188, 255, 0.15)'
+              : '0 10px 36px rgba(0, 0, 0, 0.7)')
+          : 'none',
+        px: { xs: 1.5, md: 3 },
+        pt: 0.6,
+        pb: isMobile ? 1.2 : 1.8,
+        transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1), bottom 0.25s ease',
         pointerEvents: 'auto',
       }}
     >
@@ -188,7 +210,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 onShuffle()
               }}
               size="small"
-              sx={{ color: shuffle ? 'primary.main' : 'rgba(255, 255, 255, 0.45)' }}
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                color: shuffle ? 'primary.main' : 'rgba(255, 255, 255, 0.45)'
+              }}
             >
               <Shuffle fontSize="small" />
             </IconButton>
@@ -200,27 +225,29 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 e.stopPropagation()
                 onPrev()
               }}
-              sx={{ color: '#ffffff' }}
+              sx={{ color: '#ffffff', p: { xs: 0.8, sm: 1 } }}
             >
-              <SkipPrevious />
+              <SkipPrevious fontSize={isMobileScreen ? 'medium' : 'large'} />
             </IconButton>
           </Tooltip>
 
-          {/* Big Play/Pause Button */}
+          {/* Big Play/Pause Button (Themed for Android Material You) */}
           <IconButton
             onClick={(e) => {
               e.stopPropagation()
               onTogglePlay()
             }}
             sx={{
-              width: 48,
-              height: 48,
-              bgcolor: '#ffffff',
-              color: '#0a0d14',
-              boxShadow: '0 4px 14px rgba(255, 255, 255, 0.25)',
+              width: isMobileScreen ? 44 : 48,
+              height: isMobileScreen ? 44 : 48,
+              bgcolor: isAndroid ? 'primary.main' : '#ffffff',
+              color: isAndroid ? '#141218' : '#0a0d14',
+              boxShadow: isAndroid
+                ? '0 4px 14px rgba(208, 188, 255, 0.4)'
+                : '0 4px 14px rgba(255, 255, 255, 0.25)',
               transition: 'transform 0.15s ease, background 0.2s ease',
               '&:hover': {
-                bgcolor: '#f5f5f5',
+                bgcolor: isAndroid ? 'primary.light' : '#f5f5f5',
                 transform: 'scale(1.08)',
               },
               '&:active': { transform: 'scale(0.95)' },
@@ -235,9 +262,9 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 e.stopPropagation()
                 onNext()
               }}
-              sx={{ color: '#ffffff' }}
+              sx={{ color: '#ffffff', p: { xs: 0.8, sm: 1 } }}
             >
-              <SkipNext />
+              <SkipNext fontSize={isMobileScreen ? 'medium' : 'large'} />
             </IconButton>
           </Tooltip>
 
@@ -248,7 +275,10 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
                 onRepeat()
               }}
               size="small"
-              sx={{ color: repeat !== 'none' ? 'primary.main' : 'rgba(255, 255, 255, 0.45)' }}
+              sx={{
+                display: { xs: 'none', sm: 'inline-flex' },
+                color: repeat !== 'none' ? 'primary.main' : 'rgba(255, 255, 255, 0.45)'
+              }}
             >
               <RepeatIcon fontSize="small" />
             </IconButton>
@@ -259,47 +289,51 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
         <Box
           display="flex"
           alignItems="center"
-          gap={1.5}
+          gap={{ xs: 0.5, sm: 1.5 }}
           sx={{
             minWidth: 0,
             justifyContent: 'flex-end',
             justifySelf: 'end',
           }}
         >
-          <Tooltip title={isMuted ? 'Включить звук' : 'Без звука'}>
-            <IconButton
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleMute()
-              }}
-              size="small"
-              sx={{ color: 'rgba(255, 255, 255, 0.65)' }}
-            >
-              {isMuted ? <VolumeOff fontSize="small" /> : <VolumeUp fontSize="small" />}
-            </IconButton>
-          </Tooltip>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
+            <Tooltip title={isMuted ? 'Включить звук' : 'Без звука'}>
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleMute()
+                }}
+                size="small"
+                sx={{ color: 'rgba(255, 255, 255, 0.65)' }}
+              >
+                {isMuted ? <VolumeOff fontSize="small" /> : <VolumeUp fontSize="small" />}
+              </IconButton>
+            </Tooltip>
 
-          <Slider
-            value={isMuted ? 0 : volume}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(_e, v) => onVolume(v as number)}
-            sx={{
-              width: { xs: 70, sm: 90 },
-              color: 'primary.main',
-              '& .MuiSlider-thumb': { width: 12, height: 12 },
-            }}
-          />
+            <Slider
+              value={isMuted ? 0 : volume}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(_e, v) => onVolume(v as number)}
+              sx={{
+                width: { xs: 70, sm: 90 },
+                color: 'primary.main',
+                '& .MuiSlider-thumb': { width: 12, height: 12 },
+              }}
+            />
+          </Box>
 
           <Tooltip title="Развернуть текст и обложку">
             <IconButton
               onClick={onOpenFullscreenLyrics}
               size="small"
               sx={{
-                color: 'rgba(255, 255, 255, 0.8)',
-                bgcolor: 'rgba(255, 255, 255, 0.08)',
-                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' }
+                color: isAndroid ? 'primary.light' : 'rgba(255, 255, 255, 0.9)',
+                bgcolor: isAndroid ? 'rgba(208, 188, 255, 0.16)' : 'rgba(255, 255, 255, 0.08)',
+                border: isAndroid ? '1px solid rgba(208, 188, 255, 0.25)' : 'none',
+                p: { xs: 1, sm: 0.8 },
+                '&:hover': { bgcolor: isAndroid ? 'rgba(208, 188, 255, 0.25)' : 'rgba(255, 255, 255, 0.15)' }
               }}
             >
               <KeyboardArrowUp fontSize="small" />

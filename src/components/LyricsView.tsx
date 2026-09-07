@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Box, Typography, CircularProgress, IconButton, Tooltip } from '@mui/material'
+import { Box, Typography, CircularProgress, IconButton, Tooltip, useTheme, useMediaQuery } from '@mui/material'
 import {
   PlayArrow, Pause, SkipPrevious, SkipNext,
   Shuffle, Repeat, RepeatOne, MusicNote,
@@ -52,6 +52,8 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   onCloseFullscreen,
 }) => {
   const { settings, isFavorite, toggleFavorite } = useSettings()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const lyricsContainerRef = useRef<HTMLDivElement>(null)
   const activeLineRef = useRef<HTMLDivElement>(null)
   const progressFillRef = useRef<HTMLDivElement>(null)
@@ -60,8 +62,10 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   const hoverTimeRef = useRef<HTMLSpanElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Toggle lyrics display ("T" button)
-  const [showLyrics, setShowLyrics] = useState(true)
+  // Toggle lyrics display ("T" button):
+  // On mobile phones: 2 exclusive modes (Mode 1: Only Artwork, Mode 2: Only Lyrics)
+  // On desktop: side-by-side or centered
+  const [showLyrics, setShowLyrics] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 768 : true))
 
   const isFav = playerState.currentTrack ? isFavorite(playerState.currentTrack.id) : false
   const isExp = playerState.currentTrack ? (playerState.currentTrack.isExplicit || detectExplicit(playerState.currentTrack.title)) : false
@@ -176,13 +180,17 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
         justifyContent: 'center',
       }}
     >
-      {/* Top Left Close button */}
+      {/* Top Header: Close button on left, title in center (on mobile lyrics mode), and "T" toggle on right */}
       <Box
         sx={{
           position: 'absolute',
           top: 16,
           left: { xs: 16, sm: 24, md: 32 },
+          right: { xs: 16, sm: 24, md: 32 },
           zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
         }}
       >
         <Tooltip title="Свернуть плеер">
@@ -201,6 +209,46 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             <KeyboardArrowDown sx={{ fontSize: 28 }} />
           </IconButton>
         </Tooltip>
+
+        {/* Mobile Header Title when in Lyrics mode */}
+        {isMobile && showLyrics && (
+          <Box sx={{ minWidth: 0, px: 2, flex: 1, textAlign: 'center', overflow: 'hidden' }}>
+            <MarqueeText
+              text={title || ''}
+              variant="subtitle2"
+              centered
+              sx={{ color: '#ffffff', fontWeight: 700 }}
+            />
+            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block', noWrap: true }}>
+              {artist || '—'}
+            </Typography>
+          </Box>
+        )}
+
+        {/* Mobile "Т" Lyrics Toggle Button in Top Bar */}
+        {isMobile && (
+          <Tooltip title={showLyrics ? 'Показать только обложку' : 'Показать только текст'}>
+            <IconButton
+              onClick={() => setShowLyrics(prev => !prev)}
+              sx={{
+                color: showLyrics ? 'primary.main' : 'rgba(255, 255, 255, 0.8)',
+                bgcolor: showLyrics ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid',
+                borderColor: showLyrics ? 'rgba(208, 188, 255, 0.45)' : 'rgba(255, 255, 255, 0.14)',
+                backdropFilter: 'blur(12px)',
+                borderRadius: 2.5,
+                width: 42,
+                height: 42,
+                transition: 'all 0.18s ease',
+                '&:hover': { transform: 'scale(1.06)' },
+              }}
+            >
+              <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1 }}>
+                Т
+              </Typography>
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
 
       {/* Main Flex Wrapper with animated layout shift */}
@@ -210,23 +258,24 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           width: '100%',
           height: '100%',
           alignItems: 'center',
-          justifyContent: showLyrics ? 'space-between' : 'center',
-          px: { xs: 2, sm: 4, md: 6, lg: 10, xl: 14 },
+          justifyContent: isMobile ? 'center' : (showLyrics ? 'space-between' : 'center'),
+          px: isMobile ? 1.5 : { xs: 2, sm: 4, md: 6, lg: 10, xl: 14 },
           position: 'relative',
           transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
         }}
       >
-        {/* LEFT COLUMN: Album Art, Info & Controls (Pushed left when lyrics open, centers when hidden) */}
+        {/* LEFT COLUMN: Album Art, Info & Controls (Mode 1: Only Album Art on mobile) */}
         <Box
           sx={{
-            flex: '0 0 auto',
-            width: { xs: 300, sm: 360, md: showLyrics ? 380 : 460, lg: showLyrics ? 420 : 500 },
-            display: 'flex',
+            flex: isMobile ? '1 1 auto' : '0 0 auto',
+            width: isMobile ? '100%' : { xs: 300, sm: 360, md: showLyrics ? 380 : 460, lg: showLyrics ? 420 : 500 },
+            maxWidth: isMobile ? 420 : 'none',
+            display: isMobile ? (showLyrics ? 'none' : 'flex') : 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
-            mx: showLyrics ? 0 : 'auto',
+            mx: (isMobile || !showLyrics) ? 'auto' : 0,
           }}
         >
           {/* Rounded Album Art */}
@@ -566,31 +615,32 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           </Box>
         </Box>
 
-        {/* RIGHT COLUMN: Lyrics (Shifted right with buttery-smooth animated slide & fade) */}
+        {/* RIGHT COLUMN: Lyrics (Mode 2: Only Lyrics on mobile) */}
         <Box
           ref={lyricsContainerRef}
           sx={{
             flex: showLyrics ? 1 : 0,
-            width: showLyrics ? 'auto' : 0,
+            width: isMobile ? (showLyrics ? '100%' : 0) : (showLyrics ? 'auto' : 0),
             minWidth: 0,
             maxWidth: showLyrics ? '100%' : 0,
             height: '100%',
             maxHeight: '100%',
             overflowY: showLyrics ? 'auto' : 'hidden',
-            display: 'flex',
+            display: isMobile ? (showLyrics ? 'flex' : 'none') : 'flex',
             flexDirection: 'column',
-            alignItems: 'flex-start',
+            alignItems: isMobile ? 'center' : 'flex-start',
             justifyContent: (lines.length || plain) ? 'flex-start' : 'center',
-            py: lines.length ? '35vh' : (plain ? { xs: 4, md: 6 } : 0),
+            py: lines.length ? (isMobile ? '28vh' : '35vh') : (plain ? { xs: 4, md: 6 } : 0),
             // Balanced margins
-            pl: { xs: 2, md: 4, lg: 6, xl: 8 },
-            pr: { xs: 2, md: 3, lg: 5 },
+            pl: isMobile ? 1.5 : { xs: 2, md: 4, lg: 6, xl: 8 },
+            pr: isMobile ? 1.5 : { xs: 2, md: 3, lg: 5 },
+            pb: isMobile ? '120px' : 0,
             scrollbarWidth: 'none',
             '&::-webkit-scrollbar': { display: 'none' },
             maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
             opacity: showLyrics ? 1 : 0,
-            transform: showLyrics ? 'translateX(0)' : 'translateX(60px)',
+            transform: showLyrics ? 'translateX(0)' : (isMobile ? 'none' : 'translateX(60px)'),
             pointerEvents: showLyrics ? 'auto' : 'none',
             visibility: showLyrics ? 'visible' : 'hidden',
             transition: 'opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), flex 0.5s cubic-bezier(0.34, 1.2, 0.64, 1), max-width 0.5s cubic-bezier(0.34, 1.2, 0.64, 1), visibility 0.45s',
@@ -699,10 +749,12 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                     borderRadius: 2,
                     cursor: 'pointer',
                     maxWidth: '100%',
+                    width: isMobile ? '100%' : 'auto',
+                    textAlign: isMobile ? 'center' : 'left',
                     transition: 'all 0.35s cubic-bezier(0.2, 0, 0, 1)',
                     opacity,
                     transform: `scale(${scale})`,
-                    transformOrigin: 'left center',
+                    transformOrigin: isMobile ? 'center center' : 'left center',
                     filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
                     '&:hover': {
                       opacity: 1,
@@ -721,6 +773,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                       color: '#ffffff',
                       lineHeight: 1.35,
                       letterSpacing: '-0.02em',
+                      textAlign: isMobile ? 'center' : 'left',
                       transition: 'all 0.35s cubic-bezier(0.2, 0, 0, 1)',
                       textShadow: isActive
                         ? '0 0 30px rgba(255, 255, 255, 0.6), 0 2px 10px rgba(0, 0, 0, 0.6)'
@@ -733,7 +786,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               )
             })
           ) : plain ? (
-            <Box sx={{ width: '100%', maxWidth: 720, py: 2 }}>
+            <Box sx={{ width: '100%', maxWidth: 720, py: 2, textAlign: isMobile ? 'center' : 'left' }}>
               <Box
                 sx={{
                   display: 'inline-flex',
@@ -761,6 +814,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                   fontSize: { xs: '1.15rem', sm: '1.25rem', md: '1.4rem' },
                   fontWeight: 500,
                   letterSpacing: '-0.01em',
+                  textAlign: isMobile ? 'center' : 'left',
                   textShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
                 }}
               >
@@ -780,6 +834,82 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           )}
         </Box>
       </Box>
+
+      {/* Mobile Mode 2: Floating Bottom Playback Strip in Lyrics mode */}
+      {isMobile && showLyrics && (
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 22,
+            left: 16,
+            right: 16,
+            maxWidth: 400,
+            mx: 'auto',
+            zIndex: 10,
+            bgcolor: 'rgba(28, 22, 42, 0.94)',
+            backdropFilter: 'blur(28px)',
+            border: '1.5px solid rgba(208, 188, 255, 0.28)',
+            borderRadius: 4,
+            px: 2,
+            py: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px rgba(208, 188, 255, 0.12)',
+          }}
+        >
+          <Tooltip title={isFav ? 'Удалить из избранного' : 'В избранное'}>
+            <IconButton
+              size="small"
+              onClick={() => playerState.currentTrack && toggleFavorite(playerState.currentTrack)}
+              sx={{ color: isFav ? '#ff4081' : 'rgba(255,255,255,0.5)' }}
+            >
+              {isFav ? <Favorite fontSize="small" /> : <FavoriteBorder fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+
+          <IconButton onClick={onPrev} sx={{ color: '#ffffff' }}>
+            <SkipPrevious />
+          </IconButton>
+
+          <IconButton
+            onClick={onTogglePlay}
+            sx={{
+              width: 46,
+              height: 46,
+              bgcolor: 'primary.main',
+              color: '#141218',
+              boxShadow: '0 4px 14px rgba(208, 188, 255, 0.4)',
+              '&:hover': { bgcolor: 'primary.light' },
+              '&:active': { transform: 'scale(0.95)' },
+            }}
+          >
+            {playerState.isPlaying ? <Pause /> : <PlayArrow />}
+          </IconButton>
+
+          <IconButton onClick={onNext} sx={{ color: '#ffffff' }}>
+            <SkipNext />
+          </IconButton>
+
+          <Tooltip title="Показать только обложку">
+            <IconButton
+              onClick={() => setShowLyrics(false)}
+              sx={{
+                color: 'primary.main',
+                bgcolor: 'rgba(208, 188, 255, 0.2)',
+                border: '1px solid rgba(208, 188, 255, 0.35)',
+                borderRadius: 2.5,
+                width: 38,
+                height: 38,
+              }}
+            >
+              <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', lineHeight: 1 }}>
+                Т
+              </Typography>
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
     </Box>
   )
 }
