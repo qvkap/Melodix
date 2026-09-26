@@ -50,9 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         '& .MuiDrawer-paper': {
           width: SIDEBAR_WIDTH,
           boxSizing: 'border-box',
-          bgcolor: settings.blurMaterial === 'liquid' ? 'transparent' : 'rgba(16, 18, 26, 0.96)',
-          backdropFilter: settings.blurMaterial === 'liquid' ? 'none' : 'blur(24px)',
-          borderRight: settings.blurMaterial === 'liquid' ? 'none' : '1px solid rgba(255,255,255,0.06)',
+          bgcolor: 'rgba(16, 18, 26, 0.96)',
+          backdropFilter: 'blur(24px)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
           top: '42px',
           height: 'calc(100% - 42px)',
           zIndex: 1300,

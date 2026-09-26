@@ -1,0 +1,36 @@
+--- electron/main.ts
++++ electron/main.ts
+@@ -8,6 +8,7 @@
+ import os from 'os'
+ import fs from 'fs'
+ import { pathToFileURL } from 'url'
++import { MprisService } from './mpris'
+
+ // Register local-audio privileged scheme before app ready
+ protocol.registerSchemesAsPrivileged([
+@@ -414,6 +415,7 @@
+
+ let mainWindow: BrowserWindow | null = null
+ let splashWindow: BrowserWindow | null = null
++let mpris: MprisService | null = null
+
+ function createWindow() {
+   splashWindow = new BrowserWindow({
+@@ -497,6 +499,9 @@
+       }, 5000)
+     }
+   })
++
++  mpris = new MprisService()
++  mpris.init(mainWindow)
+
+   mainWindow.on('closed', () => {
+     mainWindow = null
+@@ -1373,3 +1378,8 @@
+     shell.showItemInFolder(filePath)
+   }
+ })
++
++ipcMain.on('mpris-update-state', (_e, state: any) => {
++  if (mpris) mpris.updateState(state)
++})

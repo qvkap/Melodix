@@ -1,0 +1,53 @@
+--- src/components/PlayerBar.tsx
++++ src/components/PlayerBar.tsx
+@@ -10,6 +10,7 @@
+ import { ExplicitBadge } from './ExplicitBadge'
+ import { MarqueeText } from './MarqueeText'
+ import { detectMobilePlatform } from '../services/mobileBridge'
++import { LiquidGlass } from 'simple-liquid-glass'
+
+ interface PlayerBarProps {
+   state: PlayerState
+@@ -52,8 +53,9 @@
+   const displayTitle = currentTrack ? cleanTitle(currentTrack.title, settings.exclusionWords) : ''
+   const RepeatIcon = repeat === 'one' ? RepeatOne : Repeat
+
+-  return (
+-    <Box
++  // Separate the glass styles for normal vs liquid mode
++  const wrapperSx = {
++        position: 'fixed',
+       sx={{
+-        position: 'fixed',
+         bottom: isMobile ? (bottomOffset > 0 ? bottomOffset + 8 : 10) : bottomOffset,
+         left: isMobile ? 12 : sidebarWidth,
+         right: isMobile ? 12 : 0,
+@@ -79,7 +81,19 @@
+         pb: isMobile ? 1.2 : 1.8,
+         transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1), bottom 0.25s ease',
+         pointerEvents: 'auto',
+-      }}
+-    >
++      }
++
++  const content = (
++    <Box
++      sx={settings.blurMaterial === 'liquid' ? { ...wrapperSx, background: 'transparent', backdropFilter: 'none', WebkitBackdropFilter: 'none', border: 'none', boxShadow: 'none' } : wrapperSx}
++    >
++      {settings.blurMaterial === 'liquid' && (
++         <Box sx={{ position: 'absolute', inset: 0, zIndex: -1, borderRadius: isMobile ? 4 : 0, overflow: 'hidden' }}>
++            <LiquidGlass intensity={1.8} blur={40} saturation={1.2} fallbackColor="rgba(12,14,20,0.6)" />
++         </Box>
++      )}
++
+       {/* M3 Expressive Progress Slider */}
+       <Box sx={{ mb: 0.5, cursor: 'pointer' }} className="melodix-slider">
+         <M3ProgressSlider
+@@ -131,6 +145,9 @@
+         </Box>
+       </Box>
+     </Box>
+   )
++
++  return content
+ }

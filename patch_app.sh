@@ -1,0 +1,44 @@
+cat << 'DIFF' > app.diff
+--- src/App.tsx
++++ src/App.tsx
+@@ -21,6 +21,7 @@
+ import { QueueView } from './components/QueueView'
+ import { LocalView } from './components/LocalView'
+ import { PlaylistsView } from './components/PlaylistsView'
++import { LiquidGlass } from 'simple-liquid-glass'
+
+ const Sidebar = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })))
+ const MobileBottomBar = React.lazy(() => import('./components/MobileBottomBar').then(m => ({ default: m.MobileBottomBar })))
+@@ -107,6 +108,31 @@
+       )
+     }
+
++    if (settings.blurMaterial === 'liquid') {
++      return (
++        <>
++          <Box
++            sx={{
++              position: 'fixed',
++              inset: -30,
++              zIndex: 0,
++              backgroundImage: \`url(\${currentThumbnail})\`,
++              backgroundSize: 'cover',
++              backgroundPosition: 'center',
++              filter: \`saturate(1.2) brightness(0.8)\`,
++              transform: 'translate3d(0, 0, 0) scale(1.12)',
++              willChange: 'transform',
++              backfaceVisibility: 'hidden',
++              contain: 'paint',
++              pointerEvents: 'none',
++              transition: 'background-image 0.8s ease',
++            }}
++          />
++          <LiquidGlass intensity={0} blur={0} saturation={1} fallbackColor="rgba(10,13,20,0.1)" />
++        </>
++      )
++    }
++
+     if (settings.blurMaterial === 'vibrant') {
+       return (
+DIFF
+patch -p0 < app.diff

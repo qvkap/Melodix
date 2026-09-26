@@ -1,0 +1,10 @@
+--- src/App.tsx
++++ src/App.tsx
+@@ -21,6 +21,7 @@
+ import { QueueView } from './components/QueueView'
+ import { LocalView } from './components/LocalView'
+ import { PlaylistsView } from './components/PlaylistsView'
++import { LiquidGlass } from 'simple-liquid-glass'
+
+ const Sidebar = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })))
+ const MobileBottomBar = React.lazy(() => import('./components/MobileBottomBar').then(m => ({ default: m.MobileBottomBar })))

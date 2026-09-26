@@ -18,7 +18,6 @@ import { QueueView } from './components/QueueView'
 import { FavoritesView } from './components/FavoritesView'
 import { PlaylistsView } from './components/PlaylistsView'
 import { LyricsView } from './components/LyricsView'
-import { LiquidGlass } from "simple-liquid-glass"
 import { SettingsView } from './components/SettingsView'
 import { ArtistView } from './components/ArtistView'
 import { LocalView } from './components/LocalView'
@@ -201,31 +200,6 @@ function PlayerApp() {
             pointerEvents: 'none',
           }}
         />
-      )
-    }
-
-    if (settings.blurMaterial === 'liquid') {
-      return (
-        <>
-          <Box
-            sx={{
-              position: 'fixed',
-              inset: -30,
-              zIndex: 0,
-              backgroundImage: `url(${currentThumbnail})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: `saturate(1.2) brightness(0.8)`,
-              transform: 'translate3d(0, 0, 0) scale(1.12)',
-              willChange: 'transform',
-              backfaceVisibility: 'hidden',
-              contain: 'paint',
-              pointerEvents: 'none',
-              transition: 'background-image 0.8s ease',
-            }}
-          />
-          <LiquidGlass intensity={0} blur={0} saturation={1} fallbackColor="rgba(10,13,20,0.1)" />
-        </>
       )
     }
 
