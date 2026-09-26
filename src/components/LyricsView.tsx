@@ -102,13 +102,18 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
 
   // Center scroll active lyric line smoothly
   useEffect(() => {
-    if (showLyrics && activeLineRef.current) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      })
+    if (showLyrics && activeLineRef.current && !isDragging) {
+      // Small timeout helps avoid clash with layout shifts
+      setTimeout(() => {
+        if (activeLineRef.current) {
+          activeLineRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          })
+        }
+      }, 50)
     }
-  }, [activeLine, showLyrics])
+  }, [activeLine, showLyrics, isDragging])
 
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!progressTrackRef.current) return
@@ -743,7 +748,9 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                       e.preventDefault()
                       e.stopPropagation()
                       onSeekToTime(line.time)
-                      e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      // Handle seek without aggressive smooth scroll clashing
+                      // Handle seek without aggressive smooth scroll clashing
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
                     }}
                     sx={{
                       py: 1.6,
