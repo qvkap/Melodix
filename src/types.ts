@@ -57,7 +57,7 @@ export interface FavoriteArtist {
   avatar?: string
 }
 
-export type BlurMaterial = 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'none'
+export type BlurMaterial = 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'none' | 'liquid'
 export type AppLanguage = 'ru' | 'en'
 
 export interface ProxyConfig {
@@ -115,6 +115,8 @@ declare global {
       // Proxy & yt-dlp
       getProxyConfig?: () => Promise<ProxyConfig>
       setProxyConfig?: (cfg: ProxyConfig) => Promise<{ success: boolean; error?: string }>
+      updateMprisState?: (state: any) => void
+      onMprisCommand?: (callback: (cmd: string, val?: any) => void) => () => void
       testProxy?: (proxyUrl?: string) => Promise<{ success: boolean; latencyMs?: number; error?: string }>
       getYtdlpInfo?: () => Promise<YtdlpInfo>
       updateYtdlp?: () => Promise<{ success: boolean; currentVersion?: string; latestVersion?: string; error?: string }>

@@ -8,6 +8,7 @@ import os from 'os'
 import fs from 'fs'
 import { pathToFileURL } from 'url'
 
+import { MprisService } from "./mpris"
 // Register local-audio privileged scheme before app ready
 protocol.registerSchemesAsPrivileged([
   {
@@ -414,6 +415,7 @@ function scheduleYtdlpBackgroundUpdater() {
 
 let mainWindow: BrowserWindow | null = null
 let splashWindow: BrowserWindow | null = null
+let mpris: MprisService | null = null
 
 function createWindow() {
   splashWindow = new BrowserWindow({
@@ -500,6 +502,9 @@ function createWindow() {
       }, 5000)
     }
   })
+
+  mpris = new MprisService()
+  mpris.init(mainWindow)
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -1420,3 +1425,12 @@ ipcMain.on('show-item-in-folder', (_e, filePath: string) => {
   }
 })
 
+
+ipcMain.on('mpris-update-state', (_e, state: any) => {
+  if (mpris) mpris.updateState(state)
+})
+
+
+app.on('will-quit', () => {
+  if (mpris) (mpris as any).player = null
+})

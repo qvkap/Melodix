@@ -485,6 +485,9 @@ function createWindow() {
   })
 
   mainWindow.once('ready-to-show', () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close()
+    }
     mainWindow?.show()
     if (!process.env.VITE_DEV_SERVER_URL) {
       setTimeout(() => {

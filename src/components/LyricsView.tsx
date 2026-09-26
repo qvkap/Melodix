@@ -8,6 +8,7 @@ import {
 import { Howl } from 'howler'
 import { LrcLine, PlayerState } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
+import { LiquidGlass } from "simple-liquid-glass"
 import { ExplicitBadge } from './ExplicitBadge'
 import { MarqueeText } from './MarqueeText'
 import { detectExplicit, formatTime } from '../utils'
@@ -219,6 +220,11 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
         justifyContent: 'center',
       }}
     >
+      {settings.blurMaterial === 'liquid' && (
+         <Box sx={{ position: 'absolute', inset: 0, zIndex: -1, overflow: 'hidden' }}>
+            <LiquidGlass intensity={1.5} blur={40} saturation={1.2} fallbackColor="rgba(10,13,20,0.1)" />
+         </Box>
+      )}
       {/* Top Header: Close button on left, title in center (on mobile lyrics mode), and "T" toggle on right */}
       <Box
         sx={{
@@ -677,11 +683,16 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             // Balanced margins
             pl: isMobile ? 1.5 : { xs: 2, md: 4, lg: 6, xl: 8 },
             pr: isMobile ? 1.5 : { xs: 2, md: 3, lg: 5 },
-            pb: isMobile ? '120px' : 0,
+            pb: 0,
+            scrollPaddingBottom: isMobile ? '120px' : '40px',
+            scrollPaddingTop: '40px',
             scrollbarWidth: 'none',
             '&::-webkit-scrollbar': { display: 'none' },
             maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+            bgcolor: settings.blurMaterial === 'liquid' ? 'transparent' : 'inherit',
+            backdropFilter: settings.blurMaterial === 'liquid' ? 'none' : 'inherit',
+
             opacity: showLyrics ? 1 : 0,
             transform: showLyrics ? 'translateX(0)' : (isMobile ? 'none' : 'translateX(60px)'),
             pointerEvents: showLyrics ? 'auto' : 'none',

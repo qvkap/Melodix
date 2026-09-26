@@ -58,6 +58,12 @@ contextBridge.exposeInMainWorld('melodix', {
   // Proxy & yt-dlp
   getProxyConfig: () => ipcRenderer.invoke('get-proxy-config'),
   setProxyConfig: (cfg: any) => ipcRenderer.invoke('set-proxy-config', cfg),
+  updateMprisState: (state: any) => ipcRenderer.send("mpris-update-state", state),
+  onMprisCommand: (callback: (cmd: string, val?: any) => void) => {
+    const handler = (_event: any, cmd: string, val?: any) => callback(cmd, val)
+    ipcRenderer.on("mpris-command", handler)
+    return () => ipcRenderer.removeListener("mpris-command", handler)
+  },
   testProxy: (proxyUrl?: string) => ipcRenderer.invoke('test-proxy', proxyUrl),
   getYtdlpInfo: () => ipcRenderer.invoke('get-ytdlp-info'),
   updateYtdlp: () => ipcRenderer.invoke('update-ytdlp'),

@@ -228,11 +228,6 @@ export const SettingsView: React.FC = () => {
       desc: 'Мягкий радиальный свет по центру'
     },
     {
-      value: 'liquid',
-      title: 'Liquid Glass (Experimental)',
-      desc: 'Authentic 3D liquid glass effect with refraction (Requires Restart)'
-    },
-    {
       value: 'none',
       title: t.blurNone,
       desc: 'Чистый глубокий темный фон'
