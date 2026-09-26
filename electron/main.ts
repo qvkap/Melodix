@@ -425,7 +425,7 @@ function createWindow() {
     frame: false,
     alwaysOnTop: true,
     resizable: false,
-    icon: join(__dirname, '../public/icon.png'),
+    icon: join(__dirname, '../public/logo.png'),
   })
 
   const splashHtml = join(__dirname, '../public/splash.html')
