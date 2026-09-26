@@ -69,7 +69,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Package Windows (Portable & zip)
+      - name: Package Windows (NSIS, Portable & zip)
         if: matrix.platform == 'windows'
         run: npx electron-builder --win --publish never
         env:
@@ -100,10 +100,10 @@ jobs:
       # ── Release uploads (only on tag pushes) ──────────────────────────────
 
       - name: Upload release assets (Linux)
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'linux'
+        if: matrix.platform == 'linux'
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}
+          tag: 'v1.1.0'
           artifacts: "dist/*.AppImage,dist/*.deb,dist/latest-linux.yml"
           allowUpdates: true
           replacesArtifacts: true
@@ -116,10 +116,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets (Windows)
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'windows'
+        if: matrix.platform == 'windows'
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}
+          tag: 'v1.1.0'
           artifacts: "dist/*.exe,dist/*.zip"
           allowUpdates: true
           replacesArtifacts: true
@@ -132,10 +132,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets (macOS)
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'mac'
+        if: matrix.platform == 'mac'
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref_name }}
+          tag: 'v1.1.0'
           artifacts: "dist/*.dmg,dist/*-mac.zip,dist/latest-mac.yml"
           allowUpdates: true
           replacesArtifacts: true

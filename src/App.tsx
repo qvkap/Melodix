@@ -224,7 +224,7 @@ function PlayerApp() {
               transition: 'background-image 0.8s ease',
             }}
           />
-          <LiquidGlass intensity={0} blur={0} saturation={1} fallbackColor="rgba(10,13,20,0.1)" />
+          <Box sx={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}><LiquidGlass intensity={0} blur={50} saturation={1.2} fallbackColor="rgba(10,13,20,0.5)" /></Box>
         </>
       )
     }
