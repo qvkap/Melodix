@@ -8,7 +8,7 @@ import {
 import { Track } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { cleanTitle } from '../utils'
-import { LiquidGlass } from "simple-liquid-glass"
+import { LiquidGlass } from 'liquid-glass-web-react'
 
 export const SIDEBAR_WIDTH = 230
 

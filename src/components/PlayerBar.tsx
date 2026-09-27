@@ -8,7 +8,7 @@ import {
 import { Howl } from 'howler'
 import { PlayerState } from '../types'
 import { formatTime, cleanTitle, detectExplicit } from '../utils'
-import { LiquidGlass } from "simple-liquid-glass"
+import { LiquidGlass } from 'liquid-glass-web-react'
 import { M3ProgressSlider } from './M3ProgressSlider'
 import { useSettings } from '../contexts/SettingsContext'
 import { ExplicitBadge } from './ExplicitBadge'
