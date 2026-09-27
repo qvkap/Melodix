@@ -64,19 +64,19 @@ jobs:
           npx vite build
 
       - name: Package Linux (AppImage & deb)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         run: npx electron-builder --linux --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package Windows (NSIS, Portable & zip)
-        if: matrix.platform == 'windows'
+        if: matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         run: npx electron-builder --win --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package macOS (DMG & zip)
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         run: npx electron-builder --mac --publish never
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,13 +97,17 @@ jobs:
             dist/latest*.yml
           if-no-files-found: ignore
 
+      - name: Read package.json version
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+        shell: bash
+
       # ── Release uploads (only on tag pushes) ──────────────────────────────
 
       - name: Upload release assets (Linux)
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: v${{ env.APP_VERSION }}
           artifacts: "dist/*.AppImage,dist/*.deb,dist/latest-linux.yml"
           allowUpdates: true
           replacesArtifacts: true
@@ -116,10 +120,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets (Windows)
-        if: matrix.platform == 'windows'
+        if: matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: v${{ env.APP_VERSION }}
           artifacts: "dist/*.exe,dist/*.zip"
           allowUpdates: true
           replacesArtifacts: true
@@ -132,10 +136,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets (macOS)
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: v${{ env.APP_VERSION }}
           artifacts: "dist/*.dmg,dist/*-mac.zip,dist/latest-mac.yml"
           allowUpdates: true
           replacesArtifacts: true
@@ -190,10 +194,15 @@ jobs:
           name: Melodix-Android
           path: dist/Melodix-*.apk
 
+      - name: Read package.json version
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+        shell: bash
+
       - name: Upload release assets (Android)
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: v${{ env.APP_VERSION }}
           artifacts: "dist/Melodix-*.apk"
           allowUpdates: true
           replacesArtifacts: true
@@ -260,10 +269,15 @@ jobs:
           name: Melodix-iOS
           path: dist/Melodix-*.ipa
 
+      - name: Read package.json version
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+        shell: bash
+
       - name: Upload release assets (iOS)
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: v${{ env.APP_VERSION }}
           artifacts: "dist/Melodix-*.ipa"
           allowUpdates: true
           replacesArtifacts: true
