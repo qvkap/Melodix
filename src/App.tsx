@@ -18,7 +18,7 @@ import { QueueView } from './components/QueueView'
 import { FavoritesView } from './components/FavoritesView'
 import { PlaylistsView } from './components/PlaylistsView'
 import { LyricsView } from './components/LyricsView'
-import { LiquidGlass } from "simple-liquid-glass"
+import { LiquidGlass } from 'liquid-glass-web-react'
 import { SettingsView } from './components/SettingsView'
 import { ArtistView } from './components/ArtistView'
 import { LocalView } from './components/LocalView'

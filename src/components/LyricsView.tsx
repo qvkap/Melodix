@@ -8,7 +8,7 @@ import {
 import { Howl } from 'howler'
 import { LrcLine, PlayerState } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
-import { LiquidGlass } from "simple-liquid-glass"
+import { LiquidGlass } from 'liquid-glass-web-react'
 import { ExplicitBadge } from './ExplicitBadge'
 import { MarqueeText } from './MarqueeText'
 import { detectExplicit, formatTime } from '../utils'
