@@ -495,10 +495,7 @@ function createWindow() {
       setTimeout(() => {
         // isUpdaterAvailable is defined after createWindow() in the file,
         // but we check the file existence inline here too for safety
-        const updateYml = join(process.resourcesPath, 'app-update.yml')
-        if (fs.existsSync(updateYml)) {
-          autoUpdater.checkForUpdates().catch((e) => console.log('Auto update check note:', e?.message || e))
-        }
+        autoUpdater.checkForUpdates().catch((e) => console.log('Auto update check note:', e?.message || e))
       }, 5000)
     }
   })
@@ -548,8 +545,8 @@ ipcMain.on('window-reload', () => mainWindow?.reload())
 
 // Auto Update Configuration
 // Portable / ZIP builds on Windows don't include app-update.yml — skip updater for those
-const appUpdateYml = join(process.resourcesPath, 'app-update.yml')
-const isUpdaterAvailable = !process.env.VITE_DEV_SERVER_URL && fs.existsSync(appUpdateYml)
+// Always try to initialize auto-updater outside of dev
+const isUpdaterAvailable = !process.env.VITE_DEV_SERVER_URL
 
 if (isUpdaterAvailable) {
   try {
