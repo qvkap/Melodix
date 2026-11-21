@@ -18,9 +18,16 @@ export interface Playlist {
   createdAt: number
 }
 
+export interface LrcWord {
+  text: string
+  startTime: number
+  endTime: number
+}
+
 export interface LrcLine {
   time: number   // seconds
   text: string
+  words?: LrcWord[]
 }
 
 export interface PlayerState {

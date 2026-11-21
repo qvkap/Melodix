@@ -629,6 +629,32 @@ export const SettingsView: React.FC = () => {
 
       {/* 4. Lyrics Settings */}
       <SectionCard title={t.lyricsSettings} icon={<Tune sx={{ color: 'primary.main', fontSize: 20 }} />}>
+        {/* Word-by-Word Apple Music Lyrics */}
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ cursor: 'pointer', mb: 2 }}
+          onClick={() => update({ lyricsWordSync: !settings.lyricsWordSync })}
+        >
+          <Box>
+            <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+              {t.wordByWordLyrics}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'block', mt: 0.3 }}>
+              {t.wordByWordLyricsDesc}
+            </Typography>
+          </Box>
+          <Switch
+            checked={settings.lyricsWordSync !== false}
+            onChange={e => update({ lyricsWordSync: e.target.checked })}
+            onClick={e => e.stopPropagation()}
+          />
+        </Box>
+
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: 1.5 }} />
+
+        {/* Blur Future Lines */}
         <Box
           display="flex"
           alignItems="center"

@@ -11,6 +11,7 @@ import { useSettings } from '../contexts/SettingsContext'
 import { LiquidGlass } from 'liquid-glass-web-react'
 import { ExplicitBadge } from './ExplicitBadge'
 import { MarqueeText } from './MarqueeText'
+import { ActiveWordSyncedLine } from './ActiveWordSyncedLine'
 import { detectExplicit, formatTime } from '../utils'
 
 interface LyricsViewProps {
@@ -795,6 +796,19 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                       />
                     ))}
                   </Box>
+                )
+              }
+
+              if (isActive && settings.lyricsWordSync !== false && line.words && line.words.length > 0) {
+                return (
+                  <ActiveWordSyncedLine
+                    key={i}
+                    containerRef={activeLineRef}
+                    line={line}
+                    howlRef={howlRef}
+                    isMobile={isMobile}
+                    onSeekToTime={onSeekToTime}
+                  />
                 )
               }
 

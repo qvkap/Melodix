@@ -1,4 +1,126 @@
-import { LrcLine } from './types'
+import { LrcLine, LrcWord } from './types'
+
+/**
+ * Parse inline word-by-word timestamps from Enhanced LRC lines.
+ * Supports <mm:ss.xx> word, (mm:ss.xx) word formats.
+ */
+function parseEnhancedWords(rawText: string, lineTime: number): LrcWord[] | null {
+  const tagRegex = /[<(](\d{2}):(\d{2})\.(\d{2,3})[>)]/g
+  if (!tagRegex.test(rawText)) {
+    return null
+  }
+  tagRegex.lastIndex = 0
+
+  const tokens = [...rawText.matchAll(/([<(](\d{2}):(\d{2})\.(\d{2,3})[>)]\s*)*([^<>()\[\]\n\r]+)/g)]
+  if (tokens.length === 0) return null
+
+  const parsedWords: LrcWord[] = []
+  let lastTimestamp = lineTime
+
+  for (let i = 0; i < tokens.length; i++) {
+    const fullMatch = tokens[i][0]
+    const wordText = tokens[i][5]?.trim()
+    if (!wordText) continue
+
+    const tagMatch = fullMatch.match(/[<(](\d{2}):(\d{2})\.(\d{2,3})[>)]/)
+    let wordStart = lastTimestamp
+    if (tagMatch) {
+      const min = parseInt(tagMatch[1])
+      const sec = parseInt(tagMatch[2])
+      const ms = parseInt(tagMatch[3].padEnd(3, '0'))
+      wordStart = min * 60 + sec + ms / 1000
+      lastTimestamp = wordStart
+    }
+
+    parsedWords.push({
+      text: wordText,
+      startTime: wordStart,
+      endTime: wordStart + 0.4,
+    })
+  }
+
+  if (parsedWords.length === 0) return null
+
+  for (let i = 0; i < parsedWords.length; i++) {
+    if (i < parsedWords.length - 1) {
+      parsedWords[i].endTime = Math.max(parsedWords[i].startTime + 0.1, parsedWords[i + 1].startTime)
+    } else {
+      parsedWords[i].endTime = parsedWords[i].startTime + 0.6
+    }
+  }
+
+  return parsedWords
+}
+
+/**
+ * Intelligent Apple Music style word-timing generator for standard LRC lines.
+ * Distributes vocal line duration proportionally across words based on:
+ * - Character count of each word
+ * - Sustained vowel phonemes
+ * - Natural punctuation pauses
+ * - Pacing before next line
+ */
+export function generateWordTimings(lines: LrcLine[]): LrcLine[] {
+  if (!lines || lines.length === 0) return []
+
+  return lines.map((line, i) => {
+    if (line.text === '•••' || line.text === '...' || (line.words && line.words.length > 0)) {
+      return line
+    }
+
+    const rawWords = line.text.trim().split(/\s+/).filter(Boolean)
+    if (rawWords.length === 0) {
+      return line
+    }
+
+    const nextLine = lines[i + 1]
+    const nextLineTime = nextLine ? nextLine.time : line.time + Math.max(3.5, rawWords.length * 0.55)
+    const rawGap = Math.max(0.6, nextLineTime - line.time)
+
+    const maxPlausibleDuration = Math.min(Math.max(1.4, rawWords.length * 0.45), 8.0)
+    const singingDuration = rawGap > 6.5
+      ? Math.min(rawGap - 1.2, maxPlausibleDuration)
+      : Math.max(0.5, rawGap - Math.min(0.35, rawGap * 0.12))
+
+    const weights = rawWords.map(word => {
+      let w = 1.6
+      const cleanChars = word.replace(/[^\p{L}\p{N}]/gu, '')
+      w += cleanChars.length * 0.35
+
+      const vowels = word.match(/[aeiouyаеёиоуыэюя]/gi)
+      if (vowels) {
+        w += vowels.length * 0.42
+      }
+
+      if (/[,;:\-]$/.test(word)) {
+        w += 0.45
+      } else if (/[.!?]$/.test(word)) {
+        w += 0.85
+      }
+      return w
+    })
+
+    const sumWeights = weights.reduce((acc, val) => acc + val, 0)
+    let currentStart = line.time
+    const words: LrcWord[] = []
+
+    for (let j = 0; j < rawWords.length; j++) {
+      const duration = (weights[j] / sumWeights) * singingDuration
+      const end = currentStart + duration
+      words.push({
+        text: rawWords[j],
+        startTime: currentStart,
+        endTime: end,
+      })
+      currentStart = end
+    }
+
+    return {
+      ...line,
+      words,
+    }
+  })
+}
 
 /** Parse LRC format: [mm:ss.xx] text */
 export function parseLrc(lrc: string): LrcLine[] {
@@ -11,12 +133,28 @@ export function parseLrc(lrc: string): LrcLine[] {
     const min = parseInt(match[1])
     const sec = parseInt(match[2])
     const ms = parseInt(match[3].padEnd(3, '0'))
-    const text = match[4].trim()
-    if (text) {
-      lines.push({ time: min * 60 + sec + ms / 1000, text })
+    const rawContent = match[4].trim()
+    if (!rawContent) continue
+
+    const time = min * 60 + sec + ms / 1000
+
+    const enhancedWords = parseEnhancedWords(rawContent, time)
+    const cleanText = rawContent
+      .replace(/[<(]\d{2}:\d{2}\.\d{2,3}[>)]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (cleanText) {
+      lines.push({
+        time,
+        text: cleanText,
+        words: enhancedWords || undefined,
+      })
     }
   }
-  return lines.sort((a, b) => a.time - b.time)
+
+  const sorted = lines.sort((a, b) => a.time - b.time)
+  return generateWordTimings(sorted)
 }
 
 /** Format seconds → m:ss */
