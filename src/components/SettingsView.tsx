@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Box, Typography, Switch, Slider, Chip, TextField,
   Button, Paper, Accordion, AccordionSummary, AccordionDetails,
-  Select, MenuItem, FormControl, Tooltip, InputAdornment
+  Select, MenuItem, FormControl, Tooltip, InputAdornment, Divider
 } from '@mui/material'
 import {
   Add, Delete, RestartAlt, ExpandMore, Language, BlurOn,
@@ -651,6 +651,48 @@ export const SettingsView: React.FC = () => {
             onClick={e => e.stopPropagation()}
           />
         </Box>
+
+        {/* Word Timing Calibration Slider */}
+        {settings.lyricsWordSync !== false && (
+          <Box sx={{ mt: 1.5, mb: 1, pl: 0.5 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 500, fontSize: '0.85rem' }}>
+                {t.lyricsSyncOffset}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'primary.light', fontWeight: 700, fontFamily: 'monospace' }}>
+                {settings.lyricsSyncOffset > 0 ? `+${settings.lyricsSyncOffset} мс` : `${settings.lyricsSyncOffset || 0} мс`}
+              </Typography>
+            </Box>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', mb: 1 }}>
+              {t.lyricsSyncOffsetDesc}
+            </Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Slider
+                value={settings.lyricsSyncOffset || 0}
+                min={-500}
+                max={500}
+                step={25}
+                onChange={(_, val) => update({ lyricsSyncOffset: val as number })}
+                size="small"
+                sx={{
+                  color: 'primary.main',
+                  '& .MuiSlider-thumb': {
+                    width: 14,
+                    height: 14,
+                  },
+                }}
+              />
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => update({ lyricsSyncOffset: 0 })}
+                sx={{ minWidth: 44, color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', py: 0.2 }}
+              >
+                0 мс
+              </Button>
+            </Box>
+          </Box>
+        )}
 
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: 1.5 }} />
 

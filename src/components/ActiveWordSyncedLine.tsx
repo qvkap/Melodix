@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react'
 import { Box, Typography } from '@mui/material'
 import { Howl } from 'howler'
 import { LrcLine } from '../types'
+import { useSettings } from '../contexts/SettingsContext'
 
 interface ActiveWordSyncedLineProps {
   line: LrcLine
@@ -23,8 +24,11 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
   onSeekToTime,
   containerRef,
 }) => {
+  const { settings } = useSettings()
   const wordsRef = useRef<(HTMLSpanElement | null)[]>([])
   const rafRef = useRef<number>(0)
+  const offsetRef = useRef(settings.lyricsSyncOffset || 0)
+  offsetRef.current = settings.lyricsSyncOffset || 0
 
   useEffect(() => {
     const words = line.words || []
@@ -36,8 +40,11 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
       if (!isRunning) return
       const h = howlRef.current
       if (h) {
-        const t = h.seek()
-        if (typeof t === 'number' && isFinite(t)) {
+        const rawT = h.seek()
+        if (typeof rawT === 'number' && isFinite(rawT)) {
+          // Compensate for calibrated latency / lead-in
+          const t = rawT + offsetRef.current / 1000
+
           for (let i = 0; i < words.length; i++) {
             const w = words[i]
             const el = wordsRef.current[i]
@@ -63,16 +70,20 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
               // Currently sung word: Apple Music fluid gradient wipe!
               const dur = Math.max(0.01, w.endTime - w.startTime)
               const progress = Math.min(Math.max((t - w.startTime) / dur, 0), 1)
-              const pct = (progress * 100).toFixed(1)
+              const pct = progress * 100
 
-              el.style.background = `linear-gradient(90deg, #ffffff 0%, #ffffff ${pct}%, rgba(255, 255, 255, 0.32) ${pct}%, rgba(255, 255, 255, 0.32) 100%)`
+              // Soft feathered gradient blend across glyphs (Apple Music style)
+              const fillStart = Math.max(0, pct - 12).toFixed(1)
+              const fillEnd = Math.min(100, pct + 6).toFixed(1)
+
+              el.style.background = `linear-gradient(90deg, #ffffff 0%, #ffffff ${fillStart}%, rgba(255, 255, 255, 0.32) ${fillEnd}%, rgba(255, 255, 255, 0.32) 100%)`
               el.style.webkitBackgroundClip = 'text'
               el.style.webkitTextFillColor = 'transparent'
               el.style.opacity = '1'
               el.style.filter = `drop-shadow(0 0 ${12 + progress * 10}px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 24px rgba(208, 188, 255, 0.65))`
               
               // Subtle dynamic scale bounce for vocal presence
-              const scale = 1 + Math.sin(progress * Math.PI) * 0.05
+              const scale = 1 + Math.sin(progress * Math.PI) * 0.04
               el.style.transform = `scale(${scale.toFixed(3)})`
             }
           }

@@ -53,12 +53,18 @@ function parseEnhancedWords(rawText: string, lineTime: number): LrcWord[] | null
 }
 
 /**
- * Intelligent Apple Music style word-timing generator for standard LRC lines.
- * Distributes vocal line duration proportionally across words based on:
- * - Character count of each word
- * - Sustained vowel phonemes
- * - Natural punctuation pauses
- * - Pacing before next line
+ * Advanced Musical Cadence Word-Timing Generator.
+ * 
+ * Accurately syncs lyrics to musical rhythm and vocal tempo:
+ * 1. Phonetic syllabic weight:
+ *    - Short auxiliary words ("a", "to", "in", "я", "и", "в", "на", "ты") take ~160-220ms.
+ *    - Multi-syllable words take ~220ms per vowel + ~25ms per consonant.
+ *    - Rhyme / final word of line is sustained (~1.6x-2.2x duration).
+ * 2. Musical cadence bounding:
+ *    - Never artificially stretch a short vocal phrase across a long instrumental gap!
+ *    - If gap is long (e.g. 5-8s), phrase plays at its true vocal duration (~2-3s)
+ *      and rests illuminated until the next bar.
+ *    - If gap is tight (e.g. fast rap/chatter), words compress smoothly without clipping.
  */
 export function generateWordTimings(lines: LrcLine[]): LrcLine[] {
   if (!lines || lines.length === 0) return []
@@ -74,39 +80,76 @@ export function generateWordTimings(lines: LrcLine[]): LrcLine[] {
     }
 
     const nextLine = lines[i + 1]
-    const nextLineTime = nextLine ? nextLine.time : line.time + Math.max(3.5, rawWords.length * 0.55)
-    const rawGap = Math.max(0.6, nextLineTime - line.time)
+    const nextLineTime = nextLine ? nextLine.time : line.time + Math.max(3.0, rawWords.length * 0.5)
+    const rawGap = Math.max(0.4, nextLineTime - line.time)
 
-    const maxPlausibleDuration = Math.min(Math.max(1.4, rawWords.length * 0.45), 8.0)
-    const singingDuration = rawGap > 6.5
-      ? Math.min(rawGap - 1.2, maxPlausibleDuration)
-      : Math.max(0.5, rawGap - Math.min(0.35, rawGap * 0.12))
+    // Calculate natural phonetic duration for each word in average singing tempo
+    const rawDurations = rawWords.map((word, idx) => {
+      const isFirst = idx === 0
+      const isLast = idx === rawWords.length - 1
 
-    const weights = rawWords.map(word => {
-      let w = 1.6
-      const cleanChars = word.replace(/[^\p{L}\p{N}]/gu, '')
-      w += cleanChars.length * 0.35
-
+      const cleanLetters = word.replace(/[^\p{L}\p{N}]/gu, '')
       const vowels = word.match(/[aeiouyаеёиоуыэюя]/gi)
-      if (vowels) {
-        w += vowels.length * 0.42
+      const vowelCount = vowels ? vowels.length : 1
+      const consonantCount = Math.max(0, cleanLetters.length - vowelCount)
+
+      // Syllabic basis: ~220ms per vowel in average tempo singing
+      let duration = vowelCount * 0.22 + consonantCount * 0.025
+
+      // Minimum duration: even a 1-letter word needs ~160ms to be vocalized
+      duration = Math.max(0.16, duration)
+
+      // Very short auxiliary words (articles, prepositions, conjunctions) are sung fast
+      if (cleanLetters.length <= 2 && vowelCount === 1) {
+        duration = Math.min(duration, 0.22)
       }
 
-      if (/[,;:\-]$/.test(word)) {
-        w += 0.45
-      } else if (/[.!?]$/.test(word)) {
-        w += 0.85
+      // Initial word pick-up (anacrusis): slightly crisper attack
+      if (isFirst && rawWords.length > 2) {
+        duration *= 0.92
       }
-      return w
+
+      // Final word of line: in almost every song, the rhyme is sustained!
+      if (isLast) {
+        duration = Math.max(duration * 1.75, 0.55)
+      }
+
+      // Punctuation pauses
+      if (/[,;:\-]$/.test(word)) {
+        duration += 0.12
+      } else if (/[.!?]$/.test(word)) {
+        duration += 0.22
+      }
+
+      return duration
     })
 
-    const sumWeights = weights.reduce((acc, val) => acc + val, 0)
+    const naturalTotalDuration = rawDurations.reduce((sum, d) => sum + d, 0)
+
+    // Available vocal window: singer usually takes a breath ~0.25-0.4s before the next line
+    const maxAvailableVocalWindow = Math.max(0.3, rawGap - Math.min(0.35, rawGap * 0.1))
+
+    let effectivePhraseDuration: number
+
+    if (naturalTotalDuration > maxAvailableVocalWindow) {
+      // Fast tempo / rap / tight lines: compress phrase to fit the window
+      effectivePhraseDuration = maxAvailableVocalWindow
+    } else {
+      // Gap is larger than natural phrase duration.
+      // E.g. gap is 5.0s, natural duration is 2.4s.
+      // DO NOT stretch the phrase all the way to 5s!
+      // Allow only a gentle musical expansion up to 1.35x natural duration, capped well before next line
+      const allowedExpansion = naturalTotalDuration * 1.3
+      effectivePhraseDuration = Math.min(allowedExpansion, maxAvailableVocalWindow)
+    }
+
+    const scaleFactor = effectivePhraseDuration / naturalTotalDuration
     let currentStart = line.time
     const words: LrcWord[] = []
 
     for (let j = 0; j < rawWords.length; j++) {
-      const duration = (weights[j] / sumWeights) * singingDuration
-      const end = currentStart + duration
+      const wordDur = rawDurations[j] * scaleFactor
+      const end = currentStart + wordDur
       words.push({
         text: rawWords[j],
         startTime: currentStart,

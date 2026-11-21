@@ -9,6 +9,7 @@ export interface Settings {
   backgroundBlurAmount: number      // 20–150
   lyricsBlurFuture: boolean
   lyricsWordSync: boolean
+  lyricsSyncOffset: number
   accentColorMode: 'custom' | 'system'
   accentColor: string
   exclusionWords: string[]
@@ -35,6 +36,7 @@ const DEFAULTS: Settings = {
   backgroundBlurAmount: 75,
   lyricsBlurFuture: true,
   lyricsWordSync: true,
+  lyricsSyncOffset: 0,
   accentColorMode: 'custom',
   accentColor: '#d0bcff',
   exclusionWords: [

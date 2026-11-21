@@ -228,7 +228,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
     >
       {settings.blurMaterial === 'liquid' && (
          <Box sx={{ position: 'absolute', inset: 0, zIndex: -1, overflow: 'hidden' }}>
-            <LiquidGlass intensity={0} blur={40} saturation={1.2} fallbackColor="rgba(10,13,20,0.1)" />
+            {(LiquidGlass as any)({ intensity: 0, blur: 40, saturation: 1.2, fallbackColor: "rgba(10,13,20,0.1)", children: <div style={{ width: '100%', height: '100%' }} /> })}
          </Box>
       )}
       {/* Top Header: Close button on left, title in center (on mobile lyrics mode), and "T" toggle on right */}
@@ -270,7 +270,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               centered
               sx={{ color: '#ffffff', fontWeight: 700 }}
             />
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block', noWrap: true }}>
+            <Typography variant="caption" noWrap sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block' }}>
               {artist || '—'}
             </Typography>
           </Box>

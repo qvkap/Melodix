@@ -95,7 +95,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     <Box sx={settings.blurMaterial === 'liquid' ? { ...wrapperSx, background: 'transparent', backdropFilter: 'none', WebkitBackdropFilter: 'none', border: 'none', boxShadow: 'none' } : wrapperSx}>
       {settings.blurMaterial === 'liquid' && (
          <Box sx={{ position: 'absolute', inset: 0, zIndex: -1, borderRadius: isMobile ? 4 : 0, overflow: 'hidden' }}>
-            <LiquidGlass intensity={0} blur={25} saturation={1} fallbackColor="rgba(12,14,20,0.85)" />
+            {(LiquidGlass as any)({ intensity: 0, blur: 25, saturation: 1, fallbackColor: "rgba(12,14,20,0.85)", children: <div style={{ width: '100%', height: '100%' }} /> })}
          </Box>
       )}
       {/* M3 Expressive Progress Slider */}

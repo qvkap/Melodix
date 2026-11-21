@@ -2,9 +2,10 @@ export interface Track {
   id: string
   title: string
   artist: string
+  album?: string
   duration: number
   thumbnail: string
-  url: string
+  url?: string
   isExplicit?: boolean
   isLocal?: boolean
   localPath?: string
