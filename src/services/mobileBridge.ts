@@ -429,5 +429,56 @@ export function initMobileBridge() {
       } catch {}
       return { success: false }
     },
+
+    translateLyrics: async (texts: string[], targetLang: string) => {
+      try {
+        if (!texts || !texts.length) return { success: true, translations: [] }
+        const lang = targetLang === 'en' ? 'en' : 'ru'
+
+        const sample = texts.slice(0, 30).join(' ')
+        const cyrillicCount = (sample.match(/[а-яёА-ЯЁ]/g) || []).length
+        const latinCount = (sample.match(/[a-zA-Z]/g) || []).length
+
+        if (lang === 'ru' && cyrillicCount > 15 && cyrillicCount > latinCount * 0.4) {
+          return { success: true, translations: [], detectedLang: 'ru' }
+        }
+
+        const placeholder = '§§§'
+        const payloadLines = texts.map(t => {
+          const trimmed = t.trim()
+          if (!trimmed || trimmed === '•••' || trimmed === '...') return placeholder
+          return trimmed
+        })
+
+        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `q=${encodeURIComponent(payloadLines.join('\n'))}`
+        })
+
+        if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
+        const data = await res.json()
+        const detectedLang = data[2]
+
+        if (detectedLang === lang) {
+          return { success: true, translations: [], detectedLang }
+        }
+
+        const translatedFull = (data[0] || []).map((x: any) => x[0]).join('')
+        const transParts = translatedFull.split('\n')
+
+        const translations = texts.map((orig, i) => {
+          const trimmed = orig.trim()
+          if (!trimmed || trimmed === '•••' || trimmed === '...') return ''
+          const tr = transParts[i] || ''
+          if (tr.includes(placeholder)) return ''
+          return tr.trim()
+        })
+
+        return { success: true, translations, detectedLang }
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Translation error' }
+      }
+    },
   }
 }

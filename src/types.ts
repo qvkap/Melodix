@@ -28,6 +28,7 @@ export interface LrcWord {
 export interface LrcLine {
   time: number   // seconds
   text: string
+  translation?: string
   words?: LrcWord[]
 }
 
@@ -47,6 +48,7 @@ export interface PlayerState {
 export interface LyricsState {
   lines: LrcLine[]
   plain: string
+  plainTranslation?: string
   activeLine: number
   loading: boolean
 }
@@ -65,7 +67,7 @@ export interface FavoriteArtist {
   avatar?: string
 }
 
-export type BlurMaterial = 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'none' | 'liquid'
+export type BlurMaterial = 'apple' | 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'liquid' | 'none'
 export type AppLanguage = 'ru' | 'en'
 
 export interface ProxyConfig {
@@ -105,6 +107,12 @@ declare global {
         success: boolean
         syncedLyrics?: string
         plainLyrics?: string
+        error?: string
+      }>
+      translateLyrics?: (texts: string[], targetLang: string) => Promise<{
+        success: boolean
+        translations?: string[]
+        detectedLang?: string
         error?: string
       }>
       storeGet: (key: string) => Promise<any>

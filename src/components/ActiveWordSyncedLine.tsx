@@ -109,9 +109,10 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
         e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }}
       sx={{
-        py: 1,
-        px: 1.8,
-        borderRadius: 2,
+        py: { xs: 1.2, md: 1.8 },
+        px: { xs: 1.4, md: 2.2 },
+        my: { xs: 0.6, md: 1.2 },
+        borderRadius: 3,
         cursor: 'pointer',
         maxWidth: '100%',
         width: isMobile ? '100%' : 'auto',
@@ -129,11 +130,11 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
       <Typography
         component="div"
         sx={{
-          fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-          fontSize: { xs: '1.55rem', sm: '1.85rem', md: '2.1rem' },
-          fontWeight: 700,
-          lineHeight: 1.35,
-          letterSpacing: '-0.02em',
+          fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", sans-serif',
+          fontSize: { xs: '1.9rem', sm: '2.4rem', md: '2.95rem', lg: '3.4rem' },
+          fontWeight: 800,
+          lineHeight: 1.28,
+          letterSpacing: '-0.03em',
           textAlign: isMobile ? 'center' : 'left',
           wordBreak: 'break-word',
           display: 'flex',
@@ -177,6 +178,25 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
           </Box>
         )}
       </Typography>
+
+      {settings.lyricsShowTranslation !== false && line.translation && (
+        <Typography
+          sx={{
+            fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", sans-serif',
+            fontSize: { xs: '1.05rem', sm: '1.25rem', md: '1.5rem', lg: '1.75rem' },
+            fontWeight: 500,
+            color: 'rgba(255, 255, 255, 0.72)',
+            lineHeight: 1.32,
+            letterSpacing: '-0.015em',
+            textAlign: isMobile ? 'center' : 'left',
+            mt: { xs: 0.6, md: 1 },
+            textShadow: '0 2px 8px rgba(0, 0, 0, 0.45)',
+            userSelect: 'none',
+          }}
+        >
+          {line.translation}
+        </Typography>
+      )}
     </Box>
   )
 }

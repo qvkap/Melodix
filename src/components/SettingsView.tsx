@@ -8,7 +8,7 @@ import {
   Add, Delete, RestartAlt, ExpandMore, Language, BlurOn,
   SettingsApplications, Tune, CloudQueue, Check, CheckCircle, ErrorOutline,
   SystemUpdateAlt, Refresh, Download, Palette, Wallpaper, ColorLens,
-  VpnLock, Terminal, Speed
+  VpnLock, Terminal, Speed, GraphicEq
 } from '@mui/icons-material'
 import { useSettings } from '../contexts/SettingsContext'
 import { BlurMaterial, AppLanguage, ProxyConfig, YtdlpInfo } from '../types'
@@ -207,6 +207,11 @@ export const SettingsView: React.FC = () => {
   }
 
   const blurOptions: { value: BlurMaterial; title: string; desc: string }[] = [
+    {
+      value: 'apple',
+      title: (t as any).blurApple || 'Apple Music (Fluid GPU)',
+      desc: (t as any).blurAppleDesc || 'Живой GPU-шейдер со скручиванием слоёв обложки в реальном времени'
+    },
     {
       value: 'ambient',
       title: t.blurAmbient,
@@ -629,6 +634,31 @@ export const SettingsView: React.FC = () => {
 
       {/* 4. Lyrics Settings */}
       <SectionCard title={t.lyricsSettings} icon={<Tune sx={{ color: 'primary.main', fontSize: 20 }} />}>
+        {/* Lyrics Translation */}
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ cursor: 'pointer', mb: 2 }}
+          onClick={() => update({ lyricsShowTranslation: !settings.lyricsShowTranslation })}
+        >
+          <Box>
+            <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+              {t.lyricsShowTranslation}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'block', mt: 0.3 }}>
+              {t.lyricsShowTranslationDesc}
+            </Typography>
+          </Box>
+          <Switch
+            checked={settings.lyricsShowTranslation !== false}
+            onChange={e => update({ lyricsShowTranslation: e.target.checked })}
+            onClick={e => e.stopPropagation()}
+          />
+        </Box>
+
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', my: 1.5 }} />
+
         {/* Word-by-Word Apple Music Lyrics */}
         <Box
           display="flex"
@@ -718,6 +748,68 @@ export const SettingsView: React.FC = () => {
             onClick={e => e.stopPropagation()}
           />
         </Box>
+      </SectionCard>
+
+      {/* 5. Crossfade / Mix Transitions */}
+      <SectionCard title={t.crossfade} icon={<GraphicEq sx={{ color: 'primary.main', fontSize: 20 }} />}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ cursor: 'pointer', mb: settings.crossfade !== false ? 2 : 0 }}
+          onClick={() => update({ crossfade: !settings.crossfade })}
+        >
+          <Box>
+            <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 600 }}>
+              {t.crossfade}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'block', mt: 0.3 }}>
+              {t.crossfadeDesc}
+            </Typography>
+          </Box>
+          <Switch
+            checked={settings.crossfade !== false}
+            onChange={e => update({ crossfade: e.target.checked })}
+            onClick={e => e.stopPropagation()}
+          />
+        </Box>
+
+        {settings.crossfade !== false && (
+          <Box sx={{ mt: 1, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 0.8 }}>
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
+                {t.crossfadeDuration}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'primary.light', fontWeight: 700, fontFamily: 'monospace' }}>
+                {settings.crossfadeDuration || 5} сек
+              </Typography>
+            </Box>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', mb: 1.5 }}>
+              {t.crossfadeDurationDesc}
+            </Typography>
+            <Box sx={{ px: 1 }}>
+              <Slider
+                value={settings.crossfadeDuration || 5}
+                min={2}
+                max={12}
+                step={1}
+                marks={[
+                  { value: 2, label: '2с' },
+                  { value: 5, label: '5с' },
+                  { value: 8, label: '8с' },
+                  { value: 12, label: '12с' },
+                ]}
+                onChange={(_, val) => update({ crossfadeDuration: val as number })}
+                size="small"
+                sx={{
+                  color: 'primary.main',
+                  '& .MuiSlider-thumb': { width: 14, height: 14 },
+                  '& .MuiSlider-markLabel': { color: 'rgba(255,255,255,0.45)', fontSize: '0.72rem' },
+                }}
+              />
+            </Box>
+          </Box>
+        )}
       </SectionCard>
 
       {/* 4. Last.fm Integration */}

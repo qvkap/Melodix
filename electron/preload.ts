@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('melodix', {
   // Lyrics
   fetchLyrics: (opts: { title: string; artist: string; duration?: number }) =>
     ipcRenderer.invoke('fetch-lyrics', opts),
+  translateLyrics: (texts: string[], targetLang: string) =>
+    ipcRenderer.invoke('translate-lyrics', { texts, targetLang }),
 
   // Store
   storeGet: (key: string) => ipcRenderer.invoke('store-get', key),

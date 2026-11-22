@@ -10,6 +10,9 @@ export interface Settings {
   lyricsBlurFuture: boolean
   lyricsWordSync: boolean
   lyricsSyncOffset: number
+  lyricsShowTranslation: boolean
+  crossfade: boolean
+  crossfadeDuration: number
   accentColorMode: 'custom' | 'system'
   accentColor: string
   exclusionWords: string[]
@@ -31,12 +34,15 @@ export interface Settings {
 
 const DEFAULTS: Settings = {
   language: 'ru',
-  blurMaterial: 'ambient',
+  blurMaterial: 'apple',
   backgroundBlur: true,
   backgroundBlurAmount: 75,
   lyricsBlurFuture: true,
   lyricsWordSync: true,
   lyricsSyncOffset: 0,
+  lyricsShowTranslation: true,
+  crossfade: true,
+  crossfadeDuration: 5,
   accentColorMode: 'custom',
   accentColor: '#d0bcff',
   exclusionWords: [
@@ -91,7 +97,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [settings, setSettings] = useState<Settings>(() => {
     try {
       const raw = localStorage.getItem('melodix-settings-v2')
-      if (raw) return { ...DEFAULTS, ...JSON.parse(raw) }
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (!parsed.blurMaterial || parsed.blurMaterial === 'ambient') {
+          parsed.blurMaterial = 'apple'
+        }
+        return { ...DEFAULTS, ...parsed }
+      }
     } catch {}
     return DEFAULTS
   })

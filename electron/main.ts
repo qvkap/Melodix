@@ -1219,6 +1219,80 @@ ipcMain.handle('fetch-lyrics', async (_event, { title, artist, duration, trackId
   }
 })
 
+// In-Memory Lyrics Translation Cache
+const translationCache = new Map<string, { translations: string[]; detectedLang?: string; ts: number }>()
+const TRANSLATION_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+// Intelligent Lyrics Translation with Language Detection & Auto-Skip
+ipcMain.handle('translate-lyrics', async (_event, { texts, targetLang }: { texts: string[]; targetLang: string }) => {
+  try {
+    if (!texts || !texts.length) return { success: true, translations: [] }
+    const lang = targetLang === 'en' ? 'en' : 'ru'
+
+    // Fast heuristic on input text
+    const sample = texts.slice(0, 30).join(' ')
+    const cyrillicCount = (sample.match(/[а-яёА-ЯЁ]/g) || []).length
+    const latinCount = (sample.match(/[a-zA-Z]/g) || []).length
+
+    // If target is Russian and text has substantial Russian characters: already Russian, skip!
+    if (lang === 'ru' && cyrillicCount > 15 && cyrillicCount > latinCount * 0.4) {
+      return { success: true, translations: [], detectedLang: 'ru' }
+    }
+
+    // Cache key based on lang + length + first few lines
+    const cacheKey = `${lang}:${texts.length}:${texts.slice(0, 5).join('|')}`
+    const cached = translationCache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < TRANSLATION_TTL) {
+      return { success: true, translations: cached.translations, detectedLang: cached.detectedLang }
+    }
+
+    // Replace instrumental / empty lines with placeholder token
+    const placeholder = '§§§'
+    const payloadLines = texts.map(t => {
+      const trimmed = t.trim()
+      if (!trimmed || trimmed === '•••' || trimmed === '...') return placeholder
+      return trimmed
+    })
+
+    const bodyText = payloadLines.join('\n')
+    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `q=${encodeURIComponent(bodyText)}`
+    })
+
+    if (!res.ok) {
+      return { success: false, error: `Translation request failed with status ${res.status}` }
+    }
+
+    const data: any = await res.json()
+    const detectedLang = data[2]
+
+    // If detected language is already target language, skip translation
+    if (detectedLang === lang) {
+      translationCache.set(cacheKey, { translations: [], detectedLang, ts: Date.now() })
+      return { success: true, translations: [], detectedLang }
+    }
+
+    const translatedFull = (data[0] || []).map((x: any) => x[0]).join('')
+    const transParts = translatedFull.split('\n')
+
+    const translations = texts.map((orig, i) => {
+      const trimmed = orig.trim()
+      if (!trimmed || trimmed === '•••' || trimmed === '...') return ''
+      const tr = transParts[i] || ''
+      if (tr.includes(placeholder)) return ''
+      return tr.trim()
+    })
+
+    translationCache.set(cacheKey, { translations, detectedLang, ts: Date.now() })
+    return { success: true, translations, detectedLang }
+  } catch (err: any) {
+    console.error('Translation error:', err)
+    return { success: false, error: err?.message || 'Translation error' }
+  }
+})
+
 // Store: get/set
 ipcMain.handle('store-get', (_event, key: string) => store.get(key))
 ipcMain.handle('store-set', (_event, key: string, value: any) => store.set(key, value))

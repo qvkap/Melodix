@@ -18,6 +18,7 @@ import { QueueView } from './components/QueueView'
 import { FavoritesView } from './components/FavoritesView'
 import { PlaylistsView } from './components/PlaylistsView'
 import { LyricsView } from './components/LyricsView'
+import { AppleMusicBackground } from './components/AppleMusicBackground'
 import { LiquidGlass } from 'liquid-glass-web-react'
 import { SettingsView } from './components/SettingsView'
 import { ArtistView } from './components/ArtistView'
@@ -184,9 +185,96 @@ function PlayerApp() {
     ? getThumbnail(state.currentTrack)
     : ''
 
+  const [bgCurrent, setBgCurrent] = useState(currentThumbnail)
+  const [bgPrev, setBgPrev] = useState<string | null>(null)
+  const [bgFadeIn, setBgFadeIn] = useState(true)
+  const prevBgThumbRef = React.useRef(currentThumbnail)
+
+  React.useEffect(() => {
+    if (!currentThumbnail) return
+    if (!prevBgThumbRef.current) {
+      prevBgThumbRef.current = currentThumbnail
+      setBgCurrent(currentThumbnail)
+      return
+    }
+    if (prevBgThumbRef.current === currentThumbnail) return
+
+    const oldThumb = prevBgThumbRef.current
+    prevBgThumbRef.current = currentThumbnail
+
+    setBgPrev(oldThumb)
+    setBgCurrent(currentThumbnail)
+    setBgFadeIn(false)
+
+    const animTimer = setTimeout(() => {
+      setBgFadeIn(true)
+    }, 50)
+
+    // Clean up previous background layer after fade finishes
+    const cleanupTimer = setTimeout(() => {
+      setBgPrev(null)
+    }, 2200)
+
+    return () => {
+      clearTimeout(animTimer)
+      clearTimeout(cleanupTimer)
+    }
+  }, [currentThumbnail])
+
   // Effective sidebar width (hidden during fullscreen lyrics)
   const isSidebarVisible = isSidebarActive && isSidebarOpen && !isFullscreenLyrics
   const currentSidebarWidth = isSidebarVisible ? SIDEBAR_WIDTH : 0
+
+  // Helper to crossfade background artwork seamlessly across track changes
+  const renderCrossfadeImage = (filter: string, isCircular: boolean = false) => {
+    const baseStyle = {
+      position: 'fixed' as const,
+      inset: isCircular ? undefined : -30,
+      top: isCircular ? '50%' : undefined,
+      left: isCircular ? '50%' : undefined,
+      transform: isCircular ? 'translate3d(-50%, -50%, 0) scale(1.1)' : 'translate3d(0, 0, 0) scale(1.12)',
+      width: isCircular ? '80vw' : undefined,
+      height: isCircular ? '80vw' : undefined,
+      maxWidth: isCircular ? 800 : undefined,
+      maxHeight: isCircular ? 800 : undefined,
+      borderRadius: isCircular ? '50%' : 0,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      willChange: 'transform, opacity',
+      backfaceVisibility: 'hidden' as const,
+      contain: 'paint' as const,
+      pointerEvents: 'none' as const,
+      filter,
+    }
+
+    const effectiveCurrent = bgCurrent || currentThumbnail
+
+    return (
+      <>
+        {/* Outgoing previous background image */}
+        {bgPrev && bgPrev !== effectiveCurrent && (
+          <Box
+            sx={{
+              ...baseStyle,
+              zIndex: 0,
+              backgroundImage: `url(${bgPrev})`,
+            }}
+          />
+        )}
+        {/* Incoming new background image */}
+        <Box
+          key={effectiveCurrent}
+          sx={{
+            ...baseStyle,
+            zIndex: 0,
+            backgroundImage: `url(${effectiveCurrent})`,
+            opacity: bgFadeIn ? 1 : 0,
+            transition: 'opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        />
+      </>
+    )
+  }
 
   // Background style based on chosen blur material
   const renderBackground = () => {
@@ -204,26 +292,20 @@ function PlayerApp() {
       )
     }
 
+    if (settings.blurMaterial === 'apple' || settings.blurMaterial === 'ambient') {
+      return (
+        <AppleMusicBackground
+          currentCover={currentThumbnail}
+          isPlaying={state.isPlaying}
+          blurAmount={settings.backgroundBlurAmount}
+        />
+      )
+    }
+
     if (settings.blurMaterial === 'liquid') {
       return (
         <>
-          <Box
-            sx={{
-              position: 'fixed',
-              inset: -30,
-              zIndex: 0,
-              backgroundImage: `url(${currentThumbnail})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: `saturate(1.2) brightness(0.8)`,
-              transform: 'translate3d(0, 0, 0) scale(1.12)',
-              willChange: 'transform',
-              backfaceVisibility: 'hidden',
-              contain: 'paint',
-              pointerEvents: 'none',
-              transition: 'background-image 0.8s ease',
-            }}
-          />
+          {renderCrossfadeImage('saturate(1.2) brightness(0.8)')}
           <Box sx={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>{(LiquidGlass as any)({ intensity: 0, blur: 50, saturation: 1.2, fallbackColor: "rgba(10,13,20,0.5)", children: <div style={{ width: '100%', height: '100%' }} /> })}</Box>
         </>
       )
@@ -232,23 +314,7 @@ function PlayerApp() {
     if (settings.blurMaterial === 'vibrant') {
       return (
         <>
-          <Box
-            sx={{
-              position: 'fixed',
-              inset: -30,
-              zIndex: 0,
-              backgroundImage: `url(${currentThumbnail})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: `blur(${settings.backgroundBlurAmount}px) saturate(2.2) brightness(0.38)`,
-              transform: 'translate3d(0, 0, 0) scale(1.12)',
-              willChange: 'transform',
-              backfaceVisibility: 'hidden',
-              contain: 'paint',
-              pointerEvents: 'none',
-              transition: 'background-image 0.8s ease',
-            }}
-          />
+          {renderCrossfadeImage(`blur(${settings.backgroundBlurAmount}px) saturate(2.2) brightness(0.38)`)}
           <Box
             sx={{
               position: 'fixed',
@@ -265,23 +331,7 @@ function PlayerApp() {
     if (settings.blurMaterial === 'acrylic') {
       return (
         <>
-          <Box
-            sx={{
-              position: 'fixed',
-              inset: -30,
-              zIndex: 0,
-              backgroundImage: `url(${currentThumbnail})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: `blur(${Math.max(settings.backgroundBlurAmount, 24)}px) saturate(1.8) brightness(0.45)`,
-              transform: 'translate3d(0, 0, 0) scale(1.12)',
-              willChange: 'transform',
-              backfaceVisibility: 'hidden',
-              contain: 'paint',
-              pointerEvents: 'none',
-              transition: 'background-image 0.8s ease',
-            }}
-          />
+          {renderCrossfadeImage(`blur(${Math.max(settings.backgroundBlurAmount, 24)}px) saturate(1.8) brightness(0.45)`)}
           <Box
             sx={{
               position: 'fixed',
@@ -298,28 +348,7 @@ function PlayerApp() {
     if (settings.blurMaterial === 'glow') {
       return (
         <>
-          <Box
-            sx={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate3d(-50%, -50%, 0) scale(1.1)',
-              width: '80vw',
-              height: '80vw',
-              maxWidth: 800,
-              maxHeight: 800,
-              zIndex: 0,
-              borderRadius: '50%',
-              backgroundImage: `url(${currentThumbnail})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: `blur(${settings.backgroundBlurAmount + 30}px) saturate(1.8) brightness(0.35)`,
-              willChange: 'transform',
-              backfaceVisibility: 'hidden',
-              contain: 'paint',
-              pointerEvents: 'none',
-            }}
-          />
+          {renderCrossfadeImage(`blur(${settings.backgroundBlurAmount + 30}px) saturate(1.8) brightness(0.35)`, true)}
           <Box
             sx={{
               position: 'fixed',
@@ -333,36 +362,13 @@ function PlayerApp() {
       )
     }
 
-    // Default 'ambient' (smooth & highly optimized)
+    // Default: Apple Music fluid ambient
     return (
-      <>
-        <Box
-          sx={{
-            position: 'fixed',
-            inset: -30,
-            zIndex: 0,
-            backgroundImage: `url(${currentThumbnail})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            filter: `blur(${settings.backgroundBlurAmount}px) saturate(1.8) brightness(0.3)`,
-            transform: 'translate3d(0, 0, 0) scale(1.12)',
-            willChange: 'transform',
-            backfaceVisibility: 'hidden',
-            contain: 'paint',
-            pointerEvents: 'none',
-            transition: 'background-image 0.8s ease',
-          }}
-        />
-        <Box
-          sx={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 0,
-            background: 'radial-gradient(ellipse at center, rgba(10,13,20,0.15) 0%, rgba(10,13,20,0.72) 75%, rgba(10,13,20,0.96) 100%)',
-            pointerEvents: 'none',
-          }}
-        />
-      </>
+      <AppleMusicBackground
+        currentCover={currentThumbnail}
+        isPlaying={state.isPlaying}
+        blurAmount={settings.backgroundBlurAmount}
+      />
     )
   }
 
@@ -425,6 +431,7 @@ function PlayerApp() {
           <LyricsView
             lines={lyrics.lines}
             plain={lyrics.plain}
+            plainTranslation={lyrics.plainTranslation}
             activeLine={lyrics.activeLine}
             loading={lyrics.loading}
             thumbnail={currentThumbnail}

@@ -5,6 +5,7 @@ import { Track, PlayerState, LyricsState, LrcLine } from '../types'
 import { parseLrc, getActiveLine, getThumbnail, prepareLyricsWithInstrumentals } from '../utils'
 import { useSettings } from '../contexts/SettingsContext'
 import { LastFmService } from '../services/lastfm'
+import { translateLyricsLines, translatePlainLyrics } from '../services/lyricsTranslator'
 
 class HlsAudioAdapter {
   private audio: HTMLAudioElement
@@ -96,6 +97,66 @@ class HlsAudioAdapter {
   }
 }
 
+/**
+ * Equal-power audio crossfade curve.
+ * Maintains constant acoustic energy across transitions (Spotify / Apple Music standard).
+ */
+function smoothFade(
+  audio: any,
+  fromVol: number,
+  toVol: number,
+  durationMs: number,
+  onComplete?: () => void
+): () => void {
+  if (!audio) {
+    onComplete?.()
+    return () => {}
+  }
+
+  const startTime = performance.now()
+  let cancelled = false
+  let rafId = 0
+
+  try {
+    audio.volume(fromVol)
+  } catch {}
+
+  const step = () => {
+    if (cancelled) return
+    const elapsed = performance.now() - startTime
+    const progress = Math.min(1, Math.max(0, elapsed / durationMs))
+
+    let currentVol: number
+    if (toVol > fromVol) {
+      // Fade in using equal power curve
+      currentVol = fromVol + (toVol - fromVol) * Math.sin(progress * 0.5 * Math.PI)
+    } else {
+      // Fade out using equal power curve
+      currentVol = fromVol * Math.cos(progress * 0.5 * Math.PI)
+    }
+    currentVol = Math.min(1, Math.max(0, currentVol))
+
+    try {
+      audio.volume(currentVol)
+    } catch {}
+
+    if (progress < 1) {
+      rafId = requestAnimationFrame(step)
+    } else {
+      try {
+        audio.volume(toVol)
+      } catch {}
+      onComplete?.()
+    }
+  }
+
+  rafId = requestAnimationFrame(step)
+  return () => {
+    cancelled = true
+    if (rafId) cancelAnimationFrame(rafId)
+  }
+}
+
 const DEFAULT_STATE: PlayerState = {
   currentTrack: null,
   queue: [],
@@ -129,7 +190,144 @@ export function usePlayer() {
   // After every async await we verify our gen === loadGenRef.current to abort stale loads.
   const loadGenRef = useRef(0)
 
-  // Lightweight RAF loop for active lyric line and next track preloading
+  // Crossfade & Preload management
+  interface PreloadedTrack {
+    track: Track
+    streamUrl: string
+    lyrics?: { lines: LrcLine[]; plain: string; plainTranslation?: string }
+    howl?: any
+    createdAt: number
+  }
+
+  const preloadedRef = useRef<PreloadedTrack | null>(null)
+  const isPreloadingRef = useRef<boolean>(false)
+  const crossfadeStartedRef = useRef<boolean>(false)
+  const outgoingAudioRef = useRef<{ audio: any; cancelFade: () => void } | null>(null)
+  const handleTrackEndRef = useRef<() => void>(() => {})
+  const executeCrossfadeRef = useRef<(nextTrack: Track, fadeSeconds: number) => void>(() => {})
+  const nextTrackRef = useRef<Track | null>(null)
+
+  const getNextTrack = useCallback((forceRefresh: boolean = false): Track | null => {
+    if (!forceRefresh && nextTrackRef.current) {
+      return nextTrackRef.current
+    }
+
+    const { queue, currentTrack, shuffle, repeat } = stateRef.current
+    if (!queue.length || !currentTrack) {
+      nextTrackRef.current = null
+      return null
+    }
+    if (repeat === 'one') {
+      nextTrackRef.current = currentTrack
+      return currentTrack
+    }
+    if (shuffle) {
+      const candidates = queue.filter(tr => tr.id !== currentTrack.id)
+      const picked = candidates.length > 0
+        ? candidates[Math.floor(Math.random() * candidates.length)]
+        : currentTrack
+      nextTrackRef.current = picked
+      return picked
+    }
+    const currentIdx = queue.findIndex(tr => tr.id === currentTrack.id)
+    if (currentIdx === -1) {
+      const picked = queue[0] || null
+      nextTrackRef.current = picked
+      return picked
+    }
+    if (currentIdx < queue.length - 1) {
+      const picked = queue[currentIdx + 1]
+      nextTrackRef.current = picked
+      return picked
+    }
+    if (repeat === 'all') {
+      const picked = queue[0]
+      nextTrackRef.current = picked
+      return picked
+    }
+    nextTrackRef.current = null
+    return null
+  }, [])
+
+  const preloadNextTrack = useCallback(async (nextTrack: Track) => {
+    if (isPreloadingRef.current) return
+    isPreloadingRef.current = true
+
+    try {
+      const fixedTrack = { ...nextTrack, thumbnail: getThumbnail(nextTrack) }
+      let streamUrl = ''
+
+      if (nextTrack.isLocal || nextTrack.url?.startsWith('local-audio://') || nextTrack.id.startsWith('local:')) {
+        streamUrl = nextTrack.url?.startsWith('local-audio://')
+          ? nextTrack.url
+          : `local-audio://${nextTrack.localPath || nextTrack.id.replace(/^local:/, '')}`
+      } else {
+        const streamTarget = nextTrack.url && nextTrack.url.startsWith('http') ? nextTrack.url : nextTrack.id
+        const fallbackQuery = `${fixedTrack.artist} ${fixedTrack.title}`
+        const streamRes = await window.melodix?.getStreamUrl?.(streamTarget, fallbackQuery)
+        if (streamRes?.success && streamRes.url) {
+          streamUrl = streamRes.url
+        }
+      }
+
+      if (!streamUrl) {
+        isPreloadingRef.current = false
+        return
+      }
+
+      // Pre-fetch lyrics in parallel
+      let lyricsData: { lines: LrcLine[]; plain: string; plainTranslation?: string } | undefined
+      try {
+        const lyrRes = await window.melodix?.fetchLyrics?.({
+          title: nextTrack.title,
+          artist: nextTrack.artist,
+          duration: nextTrack.duration,
+          trackId: nextTrack.id,
+        })
+        if (lyrRes?.success) {
+          const rawLines = lyrRes.syncedLyrics ? parseLrc(lyrRes.syncedLyrics) : []
+          let lines = prepareLyricsWithInstrumentals(rawLines)
+          const targetLang = settings.language || 'ru'
+          let plainTranslation: string | undefined
+          if (settings.lyricsShowTranslation !== false) {
+            if (lines.length > 0) {
+              lines = await translateLyricsLines(lines, targetLang)
+            } else if (lyrRes.plainLyrics) {
+              plainTranslation = await translatePlainLyrics(lyrRes.plainLyrics, targetLang)
+            }
+          }
+          lyricsData = { lines, plain: lyrRes.plainLyrics || '', plainTranslation }
+        }
+      } catch {}
+
+      // Pre-create Howl instance with volume: 0
+      let preAudio: any = null
+      const isM3u8 = streamUrl.includes('.m3u8')
+      if (!isM3u8) {
+        preAudio = new Howl({
+          src: [streamUrl],
+          html5: true,
+          preload: true,
+          volume: 0,
+          mute: stateRef.current.isMuted,
+        })
+      }
+
+      preloadedRef.current = {
+        track: fixedTrack,
+        streamUrl,
+        lyrics: lyricsData,
+        howl: preAudio,
+        createdAt: Date.now(),
+      }
+    } catch (e) {
+      console.warn('Preload next track failed:', e)
+    } finally {
+      isPreloadingRef.current = false
+    }
+  }, [])
+
+  // Lightweight RAF loop for active lyric line, preloading, and 5s audio crossfading
   const tick = useCallback(() => {
     const h = howlRef.current
     if (!h) return
@@ -155,22 +353,31 @@ export function usePlayer() {
         })
 
         const d = h.duration() || 0
+        const crossfadeSec = settings.crossfade !== false ? (settings.crossfadeDuration || 5) : 0
+        const rem = d - t
 
-        // Pre-fetch next track 15s before end for gapless, zero-buffering transitions
-        if (!hasPreloadedNextRef.current && d > 20 && (d - t <= 15)) {
+        // 1. Pre-fetch next track at 15s before end for zero-buffering crossfade transition
+        if (!hasPreloadedNextRef.current && d > (crossfadeSec + 5) && rem <= 15) {
           hasPreloadedNextRef.current = true
-          const { queue, currentTrack, shuffle } = stateRef.current
-          if (queue.length > 1 && currentTrack) {
-            const currentIdx = queue.findIndex(tr => tr.id === currentTrack.id)
-            const nextTrack = shuffle
-              ? queue[Math.floor(Math.random() * queue.length)]
-              : queue[(currentIdx + 1) % queue.length]
-            if (nextTrack && nextTrack.id !== currentTrack.id) {
-              if (!nextTrack.isLocal && !nextTrack.id.startsWith('local:') && !nextTrack.url?.startsWith('local-audio://')) {
-                const nextTarget = nextTrack.url && nextTrack.url.startsWith('http') ? nextTrack.url : nextTrack.id
-                window.melodix?.getStreamUrl?.(nextTarget, `${nextTrack.artist} ${nextTrack.title}`)
-              }
-            }
+          const nextTrack = getNextTrack()
+          if (nextTrack && nextTrack.id !== stateRef.current.currentTrack?.id) {
+            preloadNextTrack(nextTrack)
+          }
+        }
+
+        // 2. Trigger Crossfade at <= crossfadeSec (default 5s) before end
+        if (
+          settings.crossfade !== false &&
+          crossfadeSec > 0 &&
+          !crossfadeStartedRef.current &&
+          d > (crossfadeSec + 2) &&
+          rem <= crossfadeSec
+        ) {
+          const nextTrack = getNextTrack()
+          if (nextTrack && nextTrack.id !== stateRef.current.currentTrack?.id) {
+            crossfadeStartedRef.current = true
+            executeCrossfadeRef.current(nextTrack, crossfadeSec)
+            return
           }
         }
 
@@ -197,7 +404,10 @@ export function usePlayer() {
     }
     // ALWAYS reschedule next frame so tick never dies during buffering/play startup
     rafRef.current = requestAnimationFrame(tick)
-  }, [settings.lastfmEnabled, settings.lastfmSessionKey, settings.lastfmApiKey, settings.lastfmSecret])
+  }, [
+    getNextTrack, preloadNextTrack, settings.crossfade, settings.crossfadeDuration,
+    settings.lastfmEnabled, settings.lastfmSessionKey, settings.lastfmApiKey, settings.lastfmSecret
+  ])
 
   // Mobile background interval timer fallback for reliable lyrics syncing
   useEffect(() => {
@@ -218,6 +428,24 @@ export function usePlayer() {
     return () => clearInterval(timer)
   }, [])
 
+  // Auto-translate lyrics when translation setting or language changes
+  useEffect(() => {
+    if (settings.lyricsShowTranslation === false) return
+    const targetLang = settings.language || 'ru'
+    if (lyrics.lines.length > 0) {
+      const hasAnyTranslation = lyrics.lines.some(l => Boolean(l.translation))
+      if (!hasAnyTranslation) {
+        translateLyricsLines(lyrics.lines, targetLang).then(translated => {
+          setLyrics(l => ({ ...l, lines: translated }))
+        })
+      }
+    } else if (lyrics.plain && !lyrics.plainTranslation) {
+      translatePlainLyrics(lyrics.plain, targetLang).then(transPlain => {
+        setLyrics(l => ({ ...l, plainTranslation: transPlain }))
+      })
+    }
+  }, [settings.lyricsShowTranslation, settings.language, lyrics.lines.length, lyrics.plain])
+
   const stopTick = () => {
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
@@ -225,9 +453,228 @@ export function usePlayer() {
     }
   }
 
+  const executeCrossfade = useCallback((nextTrack: Track, fadeSeconds: number) => {
+    nextTrackRef.current = null
+    const fadeDurationMs = Math.max(1000, fadeSeconds * 1000)
+    const outgoing = howlRef.current
+    const targetVol = stateRef.current.isMuted ? 0 : stateRef.current.volume
+
+    // 1. Detach ALL events from outgoing audio immediately so it cannot trigger onend/onpause/tick/etc.
+    if (outgoing) {
+      if (outgoingAudioRef.current?.cancelFade) {
+        outgoingAudioRef.current.cancelFade()
+        try { outgoingAudioRef.current.audio?.unload?.() } catch {}
+      }
+      try {
+        if (typeof outgoing.off === 'function') {
+          outgoing.off('play')
+          outgoing.off('pause')
+          outgoing.off('stop')
+          outgoing.off('end')
+          outgoing.off('loaderror')
+        }
+        if (outgoing.audio) {
+          outgoing.audio.onended = null
+          outgoing.audio.onpause = null
+          outgoing.audio.onplay = null
+          outgoing.audio.ontimeupdate = null
+          outgoing.audio.onerror = null
+        }
+      } catch (e) {
+        console.warn('Error detaching outgoing listeners:', e)
+      }
+
+      const fromVol = typeof outgoing.volume === 'function' ? outgoing.volume() : targetVol
+      const cancelFade = smoothFade(outgoing, fromVol, 0, fadeDurationMs, () => {
+        try {
+          outgoing.unload()
+        } catch {}
+        if (outgoingAudioRef.current?.audio === outgoing) {
+          outgoingAudioRef.current = null
+        }
+      })
+      outgoingAudioRef.current = { audio: outgoing, cancelFade }
+    }
+
+    // 2. Prepare INCOMING audio
+    const gen = ++loadGenRef.current
+    hasScrobbledRef.current = false
+    hasPreloadedNextRef.current = false
+    trackStartTimeRef.current = Date.now()
+
+    const pre = preloadedRef.current && preloadedRef.current.track.id === nextTrack.id
+      ? preloadedRef.current
+      : null
+    preloadedRef.current = null
+
+    // Point howlRef to incoming if preloaded, else null so tick does not query outgoing
+    howlRef.current = pre?.howl || null
+
+    const fixedTrack = { ...nextTrack, thumbnail: getThumbnail(nextTrack) }
+
+    stateRef.current = {
+      ...stateRef.current,
+      currentTrack: fixedTrack,
+      isPlaying: true,
+      progress: 0,
+      currentTime: 0,
+      duration: fixedTrack.duration || 0,
+    }
+
+    setState(s => ({
+      ...s,
+      currentTrack: fixedTrack,
+      isPlaying: true,
+      progress: 0,
+      currentTime: 0,
+      duration: fixedTrack.duration || 0,
+    }))
+
+    // Immediate lyrics update if preloaded (no blank screen or spinner!)
+    if (pre?.lyrics) {
+      setLyrics({
+        lines: pre.lyrics.lines,
+        plain: pre.lyrics.plain,
+        plainTranslation: pre.lyrics.plainTranslation,
+        activeLine: -1,
+        loading: false,
+      })
+    } else {
+      setLyrics({ lines: [], plain: '', plainTranslation: undefined, activeLine: -1, loading: true })
+      window.melodix?.fetchLyrics?.({
+        title: fixedTrack.title,
+        artist: fixedTrack.artist,
+        duration: fixedTrack.duration,
+        trackId: fixedTrack.id,
+      }).then(res => {
+        if (gen !== loadGenRef.current) return
+        if (res?.success) {
+          const rawLines = res.syncedLyrics ? parseLrc(res.syncedLyrics) : []
+          const lines = prepareLyricsWithInstrumentals(rawLines)
+          setLyrics({ lines, plain: res.plainLyrics || '', plainTranslation: undefined, activeLine: -1, loading: false })
+          if (settings.lyricsShowTranslation !== false) {
+            const targetLang = settings.language || 'ru'
+            if (lines.length > 0) {
+              translateLyricsLines(lines, targetLang).then(translated => {
+                if (gen !== loadGenRef.current) return
+                setLyrics(l => ({ ...l, lines: translated }))
+              })
+            } else if (res.plainLyrics) {
+              translatePlainLyrics(res.plainLyrics, targetLang).then(transPlain => {
+                if (gen !== loadGenRef.current) return
+                setLyrics(l => ({ ...l, plainTranslation: transPlain }))
+              })
+            }
+          }
+        } else {
+          setLyrics({ lines: [], plain: '', plainTranslation: undefined, activeLine: -1, loading: false })
+        }
+      })
+    }
+
+    addToRecentlyPlayed(fixedTrack)
+
+    if (settings.lastfmEnabled && settings.lastfmSessionKey) {
+      LastFmService.updateNowPlaying({
+        apiKey: settings.lastfmApiKey,
+        secret: settings.lastfmSecret,
+        sessionKey: settings.lastfmSessionKey,
+        artist: fixedTrack.artist,
+        track: fixedTrack.title,
+      })
+    }
+
+    const opts = {
+      volume: 0,
+      mute: stateRef.current.isMuted,
+      onplay: () => {
+        crossfadeStartedRef.current = false
+        setState(s => ({ ...s, isPlaying: true }))
+        rafRef.current = requestAnimationFrame(tick)
+      },
+      onpause: () => {
+        setState(s => ({ ...s, isPlaying: false }))
+        stopTick()
+      },
+      onstop: () => {
+        setState(s => ({ ...s, isPlaying: false }))
+        stopTick()
+      },
+      onend: () => {
+        stopTick()
+        setTimeout(() => handleTrackEndRef.current(), 50)
+      },
+      onloaderror: (_id: any, err: any) => {
+        console.error('Crossfade load error:', err)
+        setLyrics(l => ({ ...l, loading: false }))
+      },
+    }
+
+    const startIncoming = (streamUrl: string, existingHowl?: any) => {
+      if (gen !== loadGenRef.current) return
+      let incoming: any
+      if (streamUrl.includes('.m3u8')) {
+        incoming = new HlsAudioAdapter(streamUrl, opts)
+      } else if (existingHowl) {
+        incoming = existingHowl
+        incoming.on('play', opts.onplay)
+        incoming.on('pause', opts.onpause)
+        incoming.on('stop', opts.onstop)
+        incoming.on('end', opts.onend)
+        incoming.on('loaderror', opts.onloaderror)
+      } else {
+        incoming = new Howl({
+          src: [streamUrl],
+          html5: true,
+          ...opts,
+        })
+      }
+
+      howlRef.current = incoming
+      incoming.volume(0)
+      incoming.play()
+      smoothFade(incoming, 0, targetVol, fadeDurationMs)
+    }
+
+    if (pre && pre.streamUrl) {
+      startIncoming(pre.streamUrl, pre.howl)
+    } else {
+      let streamUrlPromise: Promise<string>
+      if (fixedTrack.isLocal || fixedTrack.url?.startsWith('local-audio://') || fixedTrack.id.startsWith('local:')) {
+        streamUrlPromise = Promise.resolve(
+          fixedTrack.url?.startsWith('local-audio://')
+            ? fixedTrack.url
+            : `local-audio://${fixedTrack.localPath || fixedTrack.id.replace(/^local:/, '')}`
+        )
+      } else {
+        const streamTarget = fixedTrack.url && fixedTrack.url.startsWith('http') ? fixedTrack.url : fixedTrack.id
+        const fallbackQuery = `${fixedTrack.artist} ${fixedTrack.title}`
+        streamUrlPromise = window.melodix?.getStreamUrl?.(streamTarget, fallbackQuery).then(res => res?.url || '')
+      }
+
+      streamUrlPromise.then(url => {
+        if (!url || gen !== loadGenRef.current) return
+        startIncoming(url)
+      })
+    }
+  }, [tick, addToRecentlyPlayed, settings.lastfmEnabled, settings.lastfmSessionKey, settings.lastfmApiKey, settings.lastfmSecret])
+
+  executeCrossfadeRef.current = executeCrossfade
+
   const loadTrack = useCallback(async (track: Track) => {
     // Claim this generation — any in-flight older loadTrack will see a mismatch and abort
     const gen = ++loadGenRef.current
+
+    nextTrackRef.current = null
+
+    if (outgoingAudioRef.current?.cancelFade) {
+      outgoingAudioRef.current.cancelFade()
+      try { outgoingAudioRef.current.audio?.unload?.() } catch {}
+      outgoingAudioRef.current = null
+    }
+    crossfadeStartedRef.current = false
+    hasPreloadedNextRef.current = false
+    preloadedRef.current = null
 
     if (howlRef.current) {
       howlRef.current.unload()
@@ -240,6 +687,15 @@ export function usePlayer() {
     trackStartTimeRef.current = Date.now()
 
     const fixedTrack = { ...track, thumbnail: getThumbnail(track) }
+
+    stateRef.current = {
+      ...stateRef.current,
+      currentTrack: fixedTrack,
+      isPlaying: false,
+      progress: 0,
+      currentTime: 0,
+      duration: 0,
+    }
 
     setState(s => ({
       ...s,
@@ -301,9 +757,23 @@ export function usePlayer() {
       if (res.success) {
         const rawLines: LrcLine[] = res.syncedLyrics ? parseLrc(res.syncedLyrics) : []
         const lines: LrcLine[] = prepareLyricsWithInstrumentals(rawLines)
-        setLyrics({ lines, plain: res.plainLyrics || '', activeLine: -1, loading: false })
+        setLyrics({ lines, plain: res.plainLyrics || '', plainTranslation: undefined, activeLine: -1, loading: false })
+        if (settings.lyricsShowTranslation !== false) {
+          const targetLang = settings.language || 'ru'
+          if (lines.length > 0) {
+            translateLyricsLines(lines, targetLang).then(translated => {
+              if (gen !== loadGenRef.current) return
+              setLyrics(l => ({ ...l, lines: translated }))
+            })
+          } else if (res.plainLyrics) {
+            translatePlainLyrics(res.plainLyrics, targetLang).then(transPlain => {
+              if (gen !== loadGenRef.current) return
+              setLyrics(l => ({ ...l, plainTranslation: transPlain }))
+            })
+          }
+        }
       } else {
-        setLyrics({ lines: [], plain: '', activeLine: -1, loading: false })
+        setLyrics({ lines: [], plain: '', plainTranslation: undefined, activeLine: -1, loading: false })
       }
     })
 
@@ -349,6 +819,11 @@ export function usePlayer() {
   }, [tick, addToRecentlyPlayed, settings.lastfmEnabled, settings.lastfmSessionKey, settings.lastfmApiKey, settings.lastfmSecret])
 
   const handleTrackEnd = useCallback(() => {
+    // If crossfade already handled this transition, do not double-skip!
+    if (crossfadeStartedRef.current) {
+      return
+    }
+
     const { repeat, queue, currentTrack, shuffle } = stateRef.current
     if (!currentTrack) return
 
@@ -406,6 +881,8 @@ export function usePlayer() {
     }
   }, [loadTrack, tick])
 
+  handleTrackEndRef.current = handleTrackEnd
+
   const togglePlay = () => {
     const h = howlRef.current
     if (!h) return
@@ -421,6 +898,11 @@ export function usePlayer() {
     // Clamp so we never seek past the audio's true length
     const rawTarget = value * d
     const targetSeconds = Math.min(Math.max(0, rawTarget), Math.max(0, d - 0.5))
+
+    const crossfadeSec = settings.crossfade !== false ? (settings.crossfadeDuration || 5) : 0
+    if (d > 0 && (d - targetSeconds) > (crossfadeSec + 2)) {
+      crossfadeStartedRef.current = false
+    }
 
     try {
       h.seek(targetSeconds)
@@ -444,7 +926,7 @@ export function usePlayer() {
       currentTime: targetSeconds,
       progress: value * 100,
     }))
-  }, [])
+  }, [settings.crossfade, settings.crossfadeDuration])
 
   const seekToTime = useCallback((seconds: number) => {
     const h = howlRef.current
@@ -457,6 +939,11 @@ export function usePlayer() {
     const clampedSeconds = d > 0
       ? Math.min(safeSeconds, Math.max(0.05, d - 0.6))
       : safeSeconds
+
+    const crossfadeSec = settings.crossfade !== false ? (settings.crossfadeDuration || 5) : 0
+    if (d > 0 && (d - clampedSeconds) > (crossfadeSec + 2)) {
+      crossfadeStartedRef.current = false
+    }
 
     try {
       h.seek(clampedSeconds)
@@ -487,7 +974,7 @@ export function usePlayer() {
       currentTime: clampedSeconds,
       progress: d > 0 ? (clampedSeconds / d) * 100 : 0,
     }))
-  }, [tick])
+  }, [tick, settings.crossfade, settings.crossfadeDuration])
 
   const setVolume = (v: number) => {
     howlRef.current?.volume(v)
@@ -501,14 +988,16 @@ export function usePlayer() {
   }
 
   const skipNext = useCallback(() => {
-    const { queue, currentTrack, shuffle } = stateRef.current
-    if (!queue.length) return
-    const idx = queue.findIndex(t => t.id === currentTrack?.id)
-    const next = shuffle
-      ? queue[Math.floor(Math.random() * queue.length)]
-      : queue[(idx + 1) % queue.length]
-    loadTrack(next)
-  }, [loadTrack])
+    const next = getNextTrack()
+    if (!next) return
+    const crossfadeSec = settings.crossfade !== false ? (settings.crossfadeDuration || 5) : 0
+    if (settings.crossfade !== false && crossfadeSec > 0 && stateRef.current.isPlaying) {
+      crossfadeStartedRef.current = true
+      executeCrossfade(next, Math.min(2.5, crossfadeSec))
+    } else {
+      loadTrack(next)
+    }
+  }, [getNextTrack, executeCrossfade, loadTrack, settings.crossfade, settings.crossfadeDuration])
 
   const skipPrev = useCallback(() => {
     const h = howlRef.current

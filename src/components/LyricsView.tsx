@@ -3,7 +3,8 @@ import { Box, Typography, CircularProgress, IconButton, Tooltip, useTheme, useMe
 import {
   PlayArrow, Pause, SkipPrevious, SkipNext,
   Shuffle, Repeat, RepeatOne, MusicNote,
-  KeyboardArrowDown, Favorite, FavoriteBorder
+  KeyboardArrowDown, Favorite, FavoriteBorder,
+  Translate
 } from '@mui/icons-material'
 import { Howl } from 'howler'
 import { LrcLine, PlayerState } from '../types'
@@ -17,6 +18,7 @@ import { detectExplicit, formatTime } from '../utils'
 interface LyricsViewProps {
   lines: LrcLine[]
   plain: string
+  plainTranslation?: string
   activeLine: number
   loading: boolean
   thumbnail: string
@@ -37,6 +39,7 @@ interface LyricsViewProps {
 export const LyricsView: React.FC<LyricsViewProps> = ({
   lines,
   plain,
+  plainTranslation,
   activeLine,
   loading,
   thumbnail,
@@ -53,7 +56,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   onSeekToTime,
   onCloseFullscreen,
 }) => {
-  const { settings, isFavorite, toggleFavorite } = useSettings()
+  const { settings, update, isFavorite, toggleFavorite } = useSettings()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const lyricsContainerRef = useRef<HTMLDivElement>(null)
@@ -63,6 +66,43 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   const hoverLabelRef = useRef<HTMLDivElement>(null)
   const hoverTimeRef = useRef<HTMLSpanElement>(null)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Album Artwork crossfade state with clean timeout lifecycle
+  const [displayedCover, setDisplayedCover] = useState(thumbnail)
+  const [prevCover, setPrevCover] = useState<string | null>(null)
+  const [coverFadeIn, setCoverFadeIn] = useState(true)
+  const activeThumbnailRef = useRef(thumbnail)
+
+  useEffect(() => {
+    if (!thumbnail) return
+    if (!activeThumbnailRef.current) {
+      activeThumbnailRef.current = thumbnail
+      setDisplayedCover(thumbnail)
+      return
+    }
+    if (activeThumbnailRef.current === thumbnail) return
+
+    const oldCover = activeThumbnailRef.current
+    activeThumbnailRef.current = thumbnail
+
+    setPrevCover(oldCover)
+    setDisplayedCover(thumbnail)
+    setCoverFadeIn(false)
+
+    const animTimer = setTimeout(() => {
+      setCoverFadeIn(true)
+    }, 50)
+
+    // Auto-cleanup outgoing cover after transition finishes so old covers NEVER get stuck!
+    const cleanupTimer = setTimeout(() => {
+      setPrevCover(null)
+    }, 2000)
+
+    return () => {
+      clearTimeout(animTimer)
+      clearTimeout(cleanupTimer)
+    }
+  }, [thumbnail])
 
   // Toggle lyrics display ("T" button):
   // On mobile phones: 2 exclusive modes (Mode 1: Only Artwork, Mode 2: Only Lyrics)
@@ -276,28 +316,51 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
           </Box>
         )}
 
-        {/* Mobile "Т" Lyrics Toggle Button in Top Bar */}
+        {/* Mobile Header Action Buttons in Top Bar */}
         {isMobile && (
-          <Tooltip title={showLyrics ? 'Показать только обложку' : 'Показать только текст'}>
-            <IconButton
-              onClick={() => setShowLyrics(prev => !prev)}
-              sx={{
-                color: showLyrics ? 'primary.main' : 'rgba(255, 255, 255, 0.8)',
-                bgcolor: showLyrics ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                backdropFilter: 'blur(12px)',
-                borderRadius: 2.5,
-                width: 42,
-                height: 42,
-                transition: 'transform 0.15s ease, background 0.15s ease',
-                '&:hover': { transform: 'scale(1.06)' },
-              }}
-            >
-              <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1 }}>
-                Т
-              </Typography>
-            </IconButton>
-          </Tooltip>
+          <Box display="flex" alignItems="center" gap={1}>
+            {showLyrics && (
+              <Tooltip title={settings.lyricsShowTranslation !== false ? 'Отключить перевод' : 'Включить перевод'}>
+                <IconButton
+                  onClick={() => update({ lyricsShowTranslation: !settings.lyricsShowTranslation })}
+                  sx={{
+                    color: settings.lyricsShowTranslation !== false ? 'primary.main' : 'rgba(255, 255, 255, 0.7)',
+                    bgcolor: settings.lyricsShowTranslation !== false ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                    border: 'none',
+                    backdropFilter: 'blur(12px)',
+                    borderRadius: 2.5,
+                    width: 42,
+                    height: 42,
+                    transition: 'transform 0.15s ease, background 0.15s ease',
+                    '&:hover': { transform: 'scale(1.06)' },
+                  }}
+                >
+                  <Translate sx={{ fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            <Tooltip title={showLyrics ? 'Показать только обложку' : 'Показать только текст'}>
+              <IconButton
+                onClick={() => setShowLyrics(prev => !prev)}
+                sx={{
+                  color: showLyrics ? 'primary.main' : 'rgba(255, 255, 255, 0.8)',
+                  bgcolor: showLyrics ? 'rgba(208, 188, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  backdropFilter: 'blur(12px)',
+                  borderRadius: 2.5,
+                  width: 42,
+                  height: 42,
+                  transition: 'transform 0.15s ease, background 0.15s ease',
+                  '&:hover': { transform: 'scale(1.06)' },
+                }}
+              >
+                <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1 }}>
+                  Т
+                </Typography>
+              </IconButton>
+            </Tooltip>
+          </Box>
         )}
       </Box>
 
@@ -328,7 +391,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             mx: (isMobile || !showLyrics) ? 'auto' : 0,
           }}
         >
-          {/* Rounded Album Art */}
+          {/* Rounded Album Art with Smooth Crossfade */}
           <Box
             sx={{
               width: '100%',
@@ -343,19 +406,47 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               transform: playerState.isPlaying ? 'scale(1)' : 'scale(0.96)',
             }}
           >
-            {thumbnail ? (
+            {/* Outgoing album cover art (temporary during transition only) */}
+            {prevCover && prevCover !== (displayedCover || thumbnail) && (
               <Box
                 component="img"
-                src={thumbnail}
-                alt={title}
-                onError={(e: any) => {
-                  e.target.style.display = 'none'
-                }}
+                src={prevCover}
+                alt="Previous track"
                 sx={{
+                  position: 'absolute',
+                  inset: 0,
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
                   display: 'block',
+                  zIndex: 1,
+                  filter: 'brightness(0.92)',
+                }}
+              />
+            )}
+            {/* Incoming album cover art */}
+            {(displayedCover || thumbnail) ? (
+              <Box
+                component="img"
+                key={displayedCover || thumbnail}
+                src={displayedCover || thumbnail}
+                alt={title}
+                onError={(e: any) => {
+                  if (playerState.currentTrack?.id) {
+                    e.target.src = `https://img.youtube.com/vi/${playerState.currentTrack.id}/mqdefault.jpg`
+                  }
+                }}
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                  zIndex: 2,
+                  opacity: coverFadeIn ? 1 : 0,
+                  transform: coverFadeIn ? 'scale(1)' : 'scale(1.04)',
+                  transition: 'opacity 1.8s cubic-bezier(0.4, 0, 0.2, 1), transform 1.8s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               />
             ) : (
@@ -374,15 +465,20 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             )}
           </Box>
 
-          {/* Title and Artist */}
+          {/* Title and Artist with Smooth Dissolve */}
           <Box
+            key={title + artist}
             sx={{
               width: '100%',
               maxWidth: { xs: 280, sm: 330, md: showLyrics ? 360 : 440, lg: showLyrics ? 400 : 480 },
               textAlign: 'center',
               mt: 3,
               mb: 2,
-              transition: 'all 0.5s cubic-bezier(0.34, 1.2, 0.64, 1)',
+              animation: 'trackInfoCrossfade 1.6s cubic-bezier(0.2, 0, 0, 1)',
+              '@keyframes trackInfoCrossfade': {
+                '0%': { opacity: 0, transform: 'translateY(8px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
             }}
           >
             <MarqueeText
@@ -667,6 +763,34 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                 </Typography>
               </IconButton>
             </Tooltip>
+
+            {/* Right 4: Lyrics Translation Toggle */}
+            {showLyrics && (
+              <Tooltip title={settings.lyricsShowTranslation !== false ? 'Отключить перевод текста' : 'Включить перевод текста'}>
+                <IconButton
+                  onClick={() => update({ lyricsShowTranslation: !settings.lyricsShowTranslation })}
+                  size="small"
+                  sx={{
+                    color: settings.lyricsShowTranslation !== false ? 'primary.main' : 'rgba(255, 255, 255, 0.5)',
+                    bgcolor: settings.lyricsShowTranslation !== false ? 'rgba(208, 188, 255, 0.16)' : 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: 2.5,
+                    width: 38,
+                    height: 38,
+                    border: '1px solid',
+                    borderColor: settings.lyricsShowTranslation !== false ? 'rgba(208, 188, 255, 0.35)' : 'rgba(255, 255, 255, 0.1)',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                      color: '#ffffff',
+                      bgcolor: settings.lyricsShowTranslation !== false ? 'rgba(208, 188, 255, 0.26)' : 'rgba(255, 255, 255, 0.14)',
+                      transform: 'scale(1.08)'
+                    },
+                    '&:active': { transform: 'scale(0.95)' },
+                  }}
+                >
+                  <Translate sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
         </Box>
 
@@ -694,8 +818,8 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
             scrollPaddingTop: '40px',
             scrollbarWidth: 'none',
             '&::-webkit-scrollbar': { display: 'none' },
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 10%, black 25%, black 75%, rgba(0,0,0,0.15) 90%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 10%, black 25%, black 75%, rgba(0,0,0,0.15) 90%, transparent 100%)',
             bgcolor: settings.blurMaterial === 'liquid' ? 'transparent' : 'inherit',
             backdropFilter: settings.blurMaterial === 'liquid' ? 'none' : 'inherit',
 
@@ -714,11 +838,25 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               </Typography>
             </Box>
           ) : lines.length > 0 ? (
-            lines.map((line, i) => {
+            <Box
+              key={playerState.currentTrack?.id || 'lyrics-list'}
+              sx={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: isMobile ? 'center' : 'flex-start',
+                animation: 'lyricsCrossfade 1.8s cubic-bezier(0.2, 0, 0, 1)',
+                '@keyframes lyricsCrossfade': {
+                  '0%': { opacity: 0, transform: 'translateY(16px)', filter: 'blur(3px)' },
+                  '100%': { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)' },
+                },
+              }}
+            >
+              {lines.map((line, i) => {
               const isActive = i === activeLine
               const dist = i - activeLine
 
-              let opacity = 0.4
+              let opacity = 0.35
               let blurPx = 0
               let scale = 0.98
 
@@ -727,14 +865,41 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                 scale = 1
                 blurPx = 0
               } else if (dist < 0) {
+                // Past lines (above active line)
                 const absDist = Math.abs(dist)
-                opacity = Math.max(0.18, 0.5 - absDist * 0.08)
-              } else {
-                if (settings.lyricsBlurFuture) {
-                  blurPx = Math.min(dist * 0.8, 4)
-                  opacity = Math.max(0.2, 0.65 - dist * 0.08)
+                if (absDist === 1) {
+                  opacity = 0.38
+                  scale = 0.98
+                  blurPx = 0
+                } else if (absDist === 2) {
+                  opacity = 0.2
+                  scale = 0.96
+                  blurPx = 0.6
                 } else {
-                  opacity = Math.max(0.3, 0.65 - dist * 0.08)
+                  // Far past: dissolve out into darkness for minimalist Apple Music aesthetic
+                  opacity = 0.03
+                  scale = 0.93
+                  blurPx = 2.5
+                }
+              } else {
+                // Future lines (below active line)
+                if (dist === 1) {
+                  opacity = 0.45
+                  scale = 0.98
+                  blurPx = settings.lyricsBlurFuture ? 0.6 : 0
+                } else if (dist === 2) {
+                  opacity = 0.26
+                  scale = 0.96
+                  blurPx = settings.lyricsBlurFuture ? 1.5 : 0
+                } else if (dist === 3) {
+                  opacity = 0.12
+                  scale = 0.94
+                  blurPx = settings.lyricsBlurFuture ? 2.5 : 0
+                } else {
+                  // Far future lines: dissolve out
+                  opacity = 0.02
+                  scale = 0.92
+                  blurPx = settings.lyricsBlurFuture ? 3.5 : 0
                 }
               }
 
@@ -823,9 +988,10 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                     e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })
                   }}
                   sx={{
-                    py: 1,
-                    px: 1.8,
-                    borderRadius: 2,
+                    py: { xs: 1.2, md: 1.6 },
+                    px: { xs: 1.4, md: 2.2 },
+                    my: { xs: 0.6, md: 1.2 },
+                    borderRadius: 3,
                     cursor: 'pointer',
                     maxWidth: '100%',
                     width: isMobile ? '100%' : 'auto',
@@ -835,6 +1001,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                     transform: `scale(${scale})`,
                     transformOrigin: isMobile ? 'center center' : 'left center',
                     filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+                    pointerEvents: Math.abs(dist) > 3 ? 'none' : 'auto',
                     '&:hover': {
                       opacity: 1,
                       filter: 'none',
@@ -844,26 +1011,43 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
                 >
                   <Typography
                     sx={{
-                      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                      fontSize: isActive
-                        ? { xs: '1.55rem', sm: '1.85rem', md: '2.1rem' }
-                        : { xs: '1.2rem', sm: '1.38rem', md: '1.55rem' },
-                      fontWeight: isActive ? 700 : 600,
+                      fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", sans-serif',
+                      fontSize: { xs: '1.65rem', sm: '2.05rem', md: '2.45rem', lg: '2.8rem' },
+                      fontWeight: 700,
                       color: '#ffffff',
-                      lineHeight: 1.35,
-                      letterSpacing: '-0.02em',
+                      lineHeight: 1.28,
+                      letterSpacing: '-0.025em',
                       textAlign: isMobile ? 'center' : 'left',
                       transition: 'all 0.35s cubic-bezier(0.2, 0, 0, 1)',
-                      textShadow: isActive
-                        ? '0 0 30px rgba(255, 255, 255, 0.6), 0 2px 10px rgba(0, 0, 0, 0.6)'
-                        : '0 2px 8px rgba(0, 0, 0, 0.4)',
+                      textShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
                     }}
                   >
                     {line.text}
                   </Typography>
+
+                  {settings.lyricsShowTranslation !== false && line.translation && (
+                    <Typography
+                      sx={{
+                        mt: { xs: 0.5, md: 0.8 },
+                        fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", sans-serif',
+                        fontSize: { xs: '0.95rem', sm: '1.15rem', md: '1.35rem', lg: '1.55rem' },
+                        fontWeight: 500,
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        lineHeight: 1.32,
+                        letterSpacing: '-0.015em',
+                        textAlign: isMobile ? 'center' : 'left',
+                        transition: 'all 0.35s cubic-bezier(0.2, 0, 0, 1)',
+                        textShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
+                        userSelect: 'none',
+                      }}
+                    >
+                      {line.translation}
+                    </Typography>
+                  )}
                 </Box>
               )
-            })
+            })}
+            </Box>
           ) : plain ? (
             <Box sx={{ width: '100%', maxWidth: 720, py: 2, textAlign: isMobile ? 'center' : 'left' }}>
               <Box
@@ -899,6 +1083,31 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
               >
                 {plain}
               </Typography>
+
+              {settings.lyricsShowTranslation !== false && plainTranslation && (
+                <Box sx={{ mt: 3, pt: 2.5, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 1, display: 'block' }}
+                  >
+                    {settings.language === 'en' ? 'Translation' : 'Перевод'}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      whiteSpace: 'pre-wrap',
+                      color: 'rgba(255, 255, 255, 0.72)',
+                      lineHeight: 1.9,
+                      fontSize: { xs: '1.0rem', sm: '1.1rem', md: '1.2rem' },
+                      fontWeight: 500,
+                      letterSpacing: '-0.01em',
+                      textAlign: isMobile ? 'center' : 'left',
+                      textShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
+                    }}
+                  >
+                    {plainTranslation}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           ) : (
             <Box display="flex" flexDirection="column" alignItems="center" width="100%" gap={1}>
