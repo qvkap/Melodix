@@ -79,12 +79,13 @@ interface SettingsCtx {
   update: (patch: Partial<Settings>) => void
   resetExclusions: () => void
   toggleFavorite: (track: Track) => boolean
+  addToFavorites: (track: Track) => void
   isFavorite: (trackId: string) => boolean
   toggleFavoriteAlbum: (album: Album) => boolean
   isFavoriteAlbum: (albumId: string) => boolean
   toggleFavoriteArtist: (artist: FavoriteArtist) => boolean
   isFavoriteArtist: (artistName: string) => boolean
-  createPlaylist: (name: string) => void
+  createPlaylist: (name: string) => string
   deletePlaylist: (id: string) => void
   addTrackToPlaylist: (playlistId: string, track: Track) => void
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void
@@ -160,6 +161,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return nowFav
   }, [])
 
+  const addToFavorites = useCallback((track: Track) => {
+    setSettings(s => {
+      if (s.favorites.some(t => t.id === track.id)) return s
+      return { ...s, favorites: [track, ...s.favorites] }
+    })
+  }, [])
+
   const isFavoriteAlbum = useCallback((albumId: string) => {
     return (settings.favoriteAlbums || []).some(a => a.id === albumId)
   }, [settings.favoriteAlbums])
@@ -197,14 +205,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [])
 
   const createPlaylist = useCallback((name: string) => {
-    if (!name.trim()) return
+    if (!name.trim()) return ''
+    const id = 'pl-' + Date.now()
     const newPl: Playlist = {
-      id: 'pl-' + Date.now(),
+      id,
       name: name.trim(),
       tracks: [],
       createdAt: Date.now(),
     }
     setSettings(s => ({ ...s, playlists: [...s.playlists, newPl] }))
+    return id
   }, [])
 
   const deletePlaylist = useCallback((id: string) => {
@@ -256,6 +266,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         update,
         resetExclusions,
         toggleFavorite,
+        addToFavorites,
         isFavorite,
         toggleFavoriteAlbum,
         isFavoriteAlbum,

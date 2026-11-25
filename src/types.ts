@@ -69,6 +69,19 @@ export interface FavoriteArtist {
 
 export type BlurMaterial = 'apple' | 'acrylic' | 'vibrant' | 'ambient' | 'glow' | 'liquid' | 'none'
 export type AppLanguage = 'ru' | 'en'
+export type ImportPlatform = 'yandex' | 'apple' | 'spotify'
+
+export interface ImportedTrackInfo {
+  title: string
+  artist: string
+}
+
+export interface ImportPlaylistResult {
+  success: boolean
+  playlistTitle?: string
+  tracks?: ImportedTrackInfo[]
+  error?: string
+}
 
 export interface ProxyConfig {
   enabled: boolean
@@ -115,6 +128,7 @@ declare global {
         detectedLang?: string
         error?: string
       }>
+      importPlaylist?: (opts: { platform: ImportPlatform; url: string }) => Promise<ImportPlaylistResult>
       storeGet: (key: string) => Promise<any>
       storeSet: (key: string, value: any) => Promise<void>
       getUsername?: () => Promise<string>

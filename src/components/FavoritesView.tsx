@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { Box, Typography, Button, IconButton, Chip, Tooltip } from '@mui/material'
-import { Favorite, FavoriteBorder, PlayArrow, Album as AlbumIcon, Person, MusicNote } from '@mui/icons-material'
+import { Favorite, FavoriteBorder, PlayArrow, Album as AlbumIcon, Person, MusicNote, CloudDownload } from '@mui/icons-material'
 import { Track, Album, FavoriteArtist } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { TrackCard } from './TrackCard'
 import { AlbumModal } from './AlbumModal'
+import { ImportPlaylistModal } from './ImportPlaylistModal'
 import { formatTrackCount } from '../utils'
 
 interface FavoritesViewProps {
@@ -22,6 +23,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>('tracks')
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [albumModalOpen, setAlbumModalOpen] = useState(false)
+  const [openImport, setOpenImport] = useState(false)
 
   const favoriteTracks = settings.favorites || []
   const favoriteAlbums = settings.favoriteAlbums || []
@@ -70,23 +72,46 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
           </Box>
         </Box>
 
-        {activeTab === 'tracks' && favoriteTracks.length > 0 && (
-          <Button
-            variant="contained"
-            startIcon={<PlayArrow />}
-            onClick={() => onPlay(favoriteTracks[0], favoriteTracks)}
-            sx={{
-              bgcolor: 'primary.main',
-              color: '#141218',
-              fontWeight: 700,
-              borderRadius: 99,
-              px: 2.5,
-              '&:hover': { bgcolor: 'primary.light' }
-            }}
-          >
-            Воспроизвести всё
-          </Button>
-        )}
+        <Box display="flex" alignItems="center" gap={1.2} flexWrap="wrap">
+          {activeTab === 'tracks' && (
+            <Button
+              variant="outlined"
+              startIcon={<CloudDownload />}
+              onClick={() => setOpenImport(true)}
+              sx={{
+                borderColor: 'rgba(208,188,255,0.45)',
+                color: '#d0bcff',
+                fontWeight: 700,
+                borderRadius: 99,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#d0bcff',
+                  bgcolor: 'rgba(208,188,255,0.1)',
+                }
+              }}
+            >
+              {t.importTracks}
+            </Button>
+          )}
+
+          {activeTab === 'tracks' && favoriteTracks.length > 0 && (
+            <Button
+              variant="contained"
+              startIcon={<PlayArrow />}
+              onClick={() => onPlay(favoriteTracks[0], favoriteTracks)}
+              sx={{
+                bgcolor: 'primary.main',
+                color: '#141218',
+                fontWeight: 700,
+                borderRadius: 99,
+                px: 2.5,
+                '&:hover': { bgcolor: 'primary.light' }
+              }}
+            >
+              Воспроизвести всё
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Tabs */}
@@ -500,6 +525,12 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
         onClose={() => setAlbumModalOpen(false)}
         onPlay={onPlay}
         onAddToQueue={onAddToQueue}
+      />
+
+      <ImportPlaylistModal
+        open={openImport}
+        onClose={() => setOpenImport(false)}
+        defaultDestination="favorites"
       />
     </Box>
   )

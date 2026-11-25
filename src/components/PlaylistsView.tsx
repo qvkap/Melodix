@@ -3,10 +3,11 @@ import {
   Box, Typography, Button, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, Card, CardContent, IconButton, Tooltip
 } from '@mui/material'
-import { Add, Delete, QueueMusic, PlayArrow, Favorite } from '@mui/icons-material'
+import { Add, Delete, QueueMusic, PlayArrow, Favorite, CloudDownload } from '@mui/icons-material'
 import { Track, Playlist } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { TrackCard } from './TrackCard'
+import { ImportPlaylistModal } from './ImportPlaylistModal'
 
 interface PlaylistsViewProps {
   onPlay: (track: Track, results: Track[]) => void
@@ -18,6 +19,7 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
 }) => {
   const { t, settings, createPlaylist, deletePlaylist, removeTrackFromPlaylist } = useSettings()
   const [openCreate, setOpenCreate] = useState(false)
+  const [openImport, setOpenImport] = useState(false)
   const [playlistName, setPlaylistName] = useState('')
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
     initialSelectedPlaylistId || (settings.playlists[0]?.id || null)
@@ -36,7 +38,7 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
   return (
     <Box sx={{ p: { xs: 3, md: 4 }, pb: 16, maxWidth: 960, mx: 'auto', width: '100%', boxSizing: 'border-box' }}>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} sx={{ mb: 4 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
             {t.playlists}
@@ -46,20 +48,41 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpenCreate(true)}
-          sx={{
-            bgcolor: 'primary.main',
-            color: '#141218',
-            fontWeight: 700,
-            borderRadius: 99,
-            '&:hover': { bgcolor: 'primary.light' }
-          }}
-        >
-          {t.createPlaylist}
-        </Button>
+        <Box display="flex" alignItems="center" gap={1.2} flexWrap="wrap">
+          <Button
+            variant="outlined"
+            startIcon={<CloudDownload />}
+            onClick={() => setOpenImport(true)}
+            sx={{
+              borderColor: 'rgba(208,188,255,0.45)',
+              color: '#d0bcff',
+              fontWeight: 700,
+              borderRadius: 99,
+              textTransform: 'none',
+              '&:hover': {
+                borderColor: '#d0bcff',
+                bgcolor: 'rgba(208,188,255,0.1)',
+              }
+            }}
+          >
+            {t.importTracks}
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setOpenCreate(true)}
+            sx={{
+              bgcolor: 'primary.main',
+              color: '#141218',
+              fontWeight: 700,
+              borderRadius: 99,
+              '&:hover': { bgcolor: 'primary.light' }
+            }}
+          >
+            {t.createPlaylist}
+          </Button>
+        </Box>
       </Box>
 
       {/* Playlist Grid */}
@@ -289,6 +312,13 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ImportPlaylistModal
+        open={openImport}
+        onClose={() => setOpenImport(false)}
+        defaultDestination="playlist"
+        onPlaylistCreated={(newId) => setSelectedPlaylistId(newId)}
+      />
     </Box>
   )
 }

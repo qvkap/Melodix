@@ -9,6 +9,28 @@ import fs from 'fs'
 import { pathToFileURL } from 'url'
 
 import { MprisService } from "./mpris"
+
+let ytInnertube: any = null
+let ytInnertubePromise: Promise<any> | null = null
+
+async function getInnertube(): Promise<any> {
+  if (ytInnertube) return ytInnertube
+  if (!ytInnertubePromise) {
+    // Use native dynamic import() so TypeScript (CommonJS) does not transpile it to require()
+    const dynamicImport = new Function('specifier', 'return import(specifier)')
+    ytInnertubePromise = dynamicImport('youtubei.js')
+      .then((mod: any) => mod.Innertube.create({ generate_session_locally: true }))
+      .then((yt: any) => {
+        ytInnertube = yt
+        return yt
+      })
+      .catch((err: any) => {
+        ytInnertubePromise = null
+        throw err
+      })
+  }
+  return ytInnertubePromise
+}
 // Register local-audio privileged scheme before app ready
 protocol.registerSchemesAsPrivileged([
   {
@@ -802,6 +824,51 @@ ipcMain.handle('search-music', async (_event, query: string) => {
     } catch {}
   }
 
+  // 1. Primary: Official YouTube Music Songs Search via youtubei.js (clean titles, official artists, square album art)
+  if (!channelHandle) {
+    try {
+      const yt = await getInnertube()
+      const res = await yt.music.search(rawQuery, { type: 'song' })
+      const shelf: any = res.contents?.find((c: any) => c.contents?.length > 0) || res
+      const items: any[] = shelf?.contents || []
+
+      const ytmTracks = items
+        .filter((item: any) => item && item.id && item.title)
+        .map((item: any) => {
+          const thumbs = item.thumbnail?.contents || []
+          let thumb = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : ''
+          if (thumb && thumb.includes('googleusercontent.com') && /=w\d+-h\d+/.test(thumb)) {
+            thumb = thumb.replace(/=w\d+-h\d+[^&]*/, '=w544-h544-l90-rj')
+          }
+          if (!thumb) {
+            thumb = `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`
+          }
+
+          const artist = Array.isArray(item.artists) && item.artists.length > 0
+            ? item.artists.map((a: any) => a.name).filter(Boolean).join(', ')
+            : (item.author?.name || 'Unknown Artist')
+
+          return {
+            id: String(item.id),
+            title: String(item.title).trim(),
+            artist: artist.trim() || 'Unknown Artist',
+            album: item.album?.name ? String(item.album.name).trim() : undefined,
+            duration: Number(item.duration?.seconds) || 0,
+            thumbnail: thumb,
+            url: `https://music.youtube.com/watch?v=${item.id}`,
+          }
+        })
+
+      if (ytmTracks.length > 0) {
+        const resp = { success: true, results: ytmTracks }
+        searchCache.set(normQuery, { data: resp, ts: Date.now() })
+        return resp
+      }
+    } catch (err: any) {
+      console.log('YouTube Music search failed, falling back to yt-dlp:', err?.message || err)
+    }
+  }
+
   // Standard YouTube Search (30 results)
   try {
     const searchQuery = channelHandle ? `${channelHandle} songs` : rawQuery
@@ -1290,6 +1357,176 @@ ipcMain.handle('translate-lyrics', async (_event, { texts, targetLang }: { texts
   } catch (err: any) {
     console.error('Translation error:', err)
     return { success: false, error: err?.message || 'Translation error' }
+  }
+})
+
+// Import Playlist from Yandex Music, Apple Music, or Spotify
+ipcMain.handle('import-playlist', async (_event, { platform, url }: { platform: string; url: string }) => {
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  try {
+    const cleanUrl = (url || '').trim()
+    if (!cleanUrl) return { success: false, error: 'Укажите ссылку на плейлист' }
+
+    if (platform === 'spotify') {
+      const match = cleanUrl.match(/(?:playlist\/|spotify:playlist:)([a-zA-Z0-9]+)/)
+      if (!match) return { success: false, error: 'Неверная ссылка на плейлист Spotify' }
+      const playlistId = match[1]
+      const res = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`, {
+        headers: { 'User-Agent': UA },
+      })
+      if (!res.ok) return { success: false, error: `Spotify вернул статус ${res.status}` }
+      const html = await res.text()
+      const idx = html.indexOf('__NEXT_DATA__')
+      if (idx === -1) return { success: false, error: 'Не удалось прочитать данные плейлиста Spotify (возможно, он приватный)' }
+      const start = html.indexOf('>', idx) + 1
+      const end = html.indexOf('</script>', start)
+      const data: any = JSON.parse(html.slice(start, end))
+      const entity = data?.props?.pageProps?.state?.data?.entity
+      const trackList = entity?.trackList || []
+      const tracks = trackList
+        .filter((t: any) => t?.title)
+        .map((t: any) => ({
+          title: String(t.title).trim(),
+          artist: String(t.subtitle || '').replace(/\u00a0/g, ' ').trim(),
+        }))
+      if (!tracks.length) return { success: false, error: 'В плейлисте Spotify не найдено треков' }
+      return { success: true, playlistTitle: entity?.title || entity?.name || '', tracks }
+    }
+
+    if (platform === 'apple') {
+      if (!cleanUrl.includes('music.apple.com') || !cleanUrl.includes('playlist')) {
+        return { success: false, error: 'Неверная ссылка на плейлист Apple Music' }
+      }
+      const res = await fetch(cleanUrl, { headers: { 'User-Agent': UA } })
+      if (!res.ok) return { success: false, error: `Apple Music вернул статус ${res.status}` }
+      const html = await res.text()
+      const idx = html.indexOf('serialized-server-data')
+      if (idx === -1) return { success: false, error: 'Не удалось прочитать данные плейлиста Apple Music' }
+      const start = html.indexOf('>', idx) + 1
+      const end = html.indexOf('</script>', start)
+      const data: any = JSON.parse(html.slice(start, end))
+
+      const tracks: { title: string; artist: string }[] = []
+      const seen = new Set<string>()
+      let playlistTitle = ''
+
+      const walk = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return
+        if (Array.isArray(obj)) {
+          for (const item of obj) walk(item)
+          return
+        }
+        if (!playlistTitle && obj.itemKind === 'playlistHeaderLockup' && obj.title) {
+          playlistTitle = String(obj.title)
+        }
+        if (obj.itemKind === 'trackLockup' || (obj.title && obj.subtitleLinks && obj.contentDescriptor?.kind === 'song')) {
+          const title = String(obj.title || '').trim()
+          const artist = Array.isArray(obj.subtitleLinks)
+            ? obj.subtitleLinks.map((l: any) => l.title).filter(Boolean).join(', ').trim()
+            : ''
+          const key = `${title.toLowerCase()}::${artist.toLowerCase()}`
+          if (title && !seen.has(key)) {
+            seen.add(key)
+            tracks.push({ title, artist })
+          }
+        }
+        for (const k of Object.keys(obj)) {
+          walk(obj[k])
+        }
+      }
+      walk(data)
+      if (!tracks.length) return { success: false, error: 'В плейлисте Apple Music не найдено треков' }
+      return { success: true, playlistTitle, tracks }
+    }
+
+    if (platform === 'yandex') {
+      if (!cleanUrl.includes('music.yandex.')) {
+        return { success: false, error: 'Неверная ссылка на плейлист Яндекс Музыки' }
+      }
+      const res = await fetch(cleanUrl, { headers: { 'User-Agent': UA } })
+      if (!res.ok) return { success: false, error: `Яндекс Музыка вернула статус ${res.status}` }
+      const html = await res.text()
+
+      let playlistTitle = ''
+      const orderedIds: string[] = []
+      const seenIds = new Set<string>()
+      const trackMap = new Map<string, { title: string; artist: string }>()
+
+      const scriptMatches = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)]
+      for (const m of scriptMatches) {
+        const s = m[1]
+        if (!s.includes('__STATE_PATCHES__')) continue
+        const pushIdx = s.indexOf('.push(')
+        if (pushIdx === -1) continue
+        const arrStart = s.indexOf('[', pushIdx)
+        const arrEnd = s.lastIndexOf(']')
+        if (arrStart === -1 || arrEnd === -1 || arrEnd <= arrStart) continue
+        try {
+          const ops = JSON.parse(s.slice(arrStart, arrEnd + 1))
+          if (!Array.isArray(ops)) continue
+          for (const op of ops) {
+            if (op.path === '/playlist/meta' && op.value?.title) {
+              playlistTitle = String(op.value.title)
+            }
+            if ((op.path?.startsWith('/playlist/items/') || op.path?.startsWith('/playlist/initialItems/')) && op.value?.id) {
+              const id = String(op.value.id)
+              if (!seenIds.has(id)) {
+                seenIds.add(id)
+                orderedIds.push(id)
+              }
+              if (op.value.data?.title) {
+                const artist = Array.isArray(op.value.data.artists)
+                  ? op.value.data.artists.map((a: any) => a.name).filter(Boolean).join(', ')
+                  : ''
+                trackMap.set(id, { title: String(op.value.data.title).trim(), artist: artist.trim() })
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Fetch any remaining track details from Yandex Music public tracks endpoint in batches of 100
+      const missingIds = orderedIds.filter(id => !trackMap.has(id))
+      for (let i = 0; i < missingIds.length; i += 100) {
+        const batch = missingIds.slice(i, i + 100)
+        try {
+          const trRes = await fetch('https://api.music.yandex.net/tracks', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': UA,
+            },
+            body: `track-ids=${batch.join(',')}`,
+          })
+          if (trRes.ok) {
+            const trData: any = await trRes.json()
+            for (const item of (trData?.result || [])) {
+              const id = String(item.id)
+              if (item.title) {
+                const artist = Array.isArray(item.artists)
+                  ? item.artists.map((a: any) => a.name).filter(Boolean).join(', ')
+                  : ''
+                trackMap.set(id, { title: String(item.title).trim(), artist: artist.trim() })
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const tracks = orderedIds
+        .map(id => trackMap.get(id))
+        .filter((t): t is { title: string; artist: string } => Boolean(t && t.title))
+
+      if (!tracks.length) {
+        return { success: false, error: 'Не удалось найти треки. Убедитесь, что плейлист публичный и ссылка корректна.' }
+      }
+      return { success: true, playlistTitle, tracks }
+    }
+
+    return { success: false, error: 'Неизвестная площадка' }
+  } catch (err: any) {
+    console.error('Import playlist error:', err)
+    return { success: false, error: err?.message || 'Ошибка при импорте плейлиста' }
   }
 })
 

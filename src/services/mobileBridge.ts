@@ -480,5 +480,12 @@ export function initMobileBridge() {
         return { success: false, error: err?.message || 'Translation error' }
       }
     },
+
+    importPlaylist: async (_opts: { platform: string; url: string }) => {
+      return {
+        success: false,
+        error: 'Импорт плейлистов по ссылке поддерживается в десктопной версии Melodix',
+      }
+    },
   }
 }
