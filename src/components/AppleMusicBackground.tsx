@@ -21,9 +21,13 @@ interface ColorCluster {
   count: number
 }
 
+const paletteCache = new Map<string, string[]>()
+
 // Extracts the TRUE dominant colors from the album cover based on surface area
 async function extractColorsFromImage(imgUrl: string): Promise<string[]> {
   if (!imgUrl) return DEFAULT_FALLBACK_PALETTE
+  const cached = paletteCache.get(imgUrl)
+  if (cached) return cached
 
   let objectUrl = ''
   let isBlob = false
@@ -219,6 +223,11 @@ async function extractColorsFromImage(imgUrl: string): Promise<string[]> {
       )
     }
 
+    if (paletteCache.size >= 50) {
+      const oldestKey = paletteCache.keys().next().value
+      if (oldestKey) paletteCache.delete(oldestKey)
+    }
+    paletteCache.set(imgUrl, finalPalette)
     return finalPalette
   } catch {
     return DEFAULT_FALLBACK_PALETTE
@@ -236,27 +245,33 @@ export const AppleMusicBackground: React.FC<AppleMusicBackgroundProps> = ({
   const activeCoverRef = useRef('')
 
   useEffect(() => {
-    if (!currentCover) return
-    if (activeCoverRef.current === currentCover) return
+    if (!currentCover || activeCoverRef.current === currentCover) return
 
     activeCoverRef.current = currentCover
+    let cancelled = false
+    let t1: ReturnType<typeof setTimeout>
+    let t2: ReturnType<typeof setTimeout>
 
     extractColorsFromImage(currentCover).then((newPalette) => {
-      setPrevPalette(currentPalette)
-      setCurrentPalette(newPalette)
+      if (cancelled) return
+      setCurrentPalette(prev => {
+        setPrevPalette(prev)
+        return newPalette
+      })
       setFadeProgress(0)
 
-      const t1 = setTimeout(() => setFadeProgress(1), 50)
-      const t2 = setTimeout(() => setPrevPalette(null), 1800)
-
-      return () => {
-        clearTimeout(t1)
-        clearTimeout(t2)
-      }
+      t1 = setTimeout(() => setFadeProgress(1), 50)
+      t2 = setTimeout(() => setPrevPalette(null), 1800)
     })
+
+    return () => {
+      cancelled = true
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
   }, [currentCover])
 
-  const calculatedBlur = Math.max(70, Math.round(blurAmount * 1.05))
+  const calculatedBlur = Math.max(30, Math.round(blurAmount * 0.48))
 
   const renderColorBlobs = (palette: string[], opacity: number) => {
     return (
@@ -362,15 +377,19 @@ export const AppleMusicBackground: React.FC<AppleMusicBackgroundProps> = ({
       }}
     >
       {/* 
-        Heavy Blur & Saturation Container:
-        Converts the moving blobs into Apple Music's fluid, melting gradient fields
+        Half-resolution Blur & Saturation Container (4x fewer GPU pixels to blur):
+        Scaled 2.2x to fill viewport while cutting GPU VRAM and shader load
       */}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          top: '25%',
+          left: '25%',
+          width: '50%',
+          height: '50%',
           filter: `blur(${calculatedBlur}px) saturate(1.8)`,
-          transform: 'translate3d(0, 0, 0)',
+          transform: 'translate3d(0, 0, 0) scale(2.2)',
+          transformOrigin: 'center center',
           willChange: 'transform',
         }}
       >
@@ -455,23 +474,28 @@ export const AppleMusicBackground: React.FC<AppleMusicBackgroundProps> = ({
         }
 
         .apple-blob-1 {
-          animation: appleFloat1 ${isPlaying ? '21s' : '90s'} ease-in-out infinite alternate;
+          animation: appleFloat1 21s ease-in-out infinite alternate;
+          animation-play-state: ${isPlaying ? 'running' : 'paused'};
         }
 
         .apple-blob-2 {
-          animation: appleFloat2 ${isPlaying ? '27s' : '100s'} ease-in-out infinite alternate;
+          animation: appleFloat2 27s ease-in-out infinite alternate;
+          animation-play-state: ${isPlaying ? 'running' : 'paused'};
         }
 
         .apple-blob-3 {
-          animation: appleFloat3 ${isPlaying ? '24s' : '85s'} ease-in-out infinite alternate;
+          animation: appleFloat3 24s ease-in-out infinite alternate;
+          animation-play-state: ${isPlaying ? 'running' : 'paused'};
         }
 
         .apple-blob-4 {
-          animation: appleFloat4 ${isPlaying ? '30s' : '95s'} ease-in-out infinite alternate;
+          animation: appleFloat4 30s ease-in-out infinite alternate;
+          animation-play-state: ${isPlaying ? 'running' : 'paused'};
         }
 
         .apple-blob-5 {
-          animation: appleFloat5 ${isPlaying ? '18s' : '80s'} ease-in-out infinite alternate;
+          animation: appleFloat5 18s ease-in-out infinite alternate;
+          animation-play-state: ${isPlaying ? 'running' : 'paused'};
         }
       `}</style>
     </div>

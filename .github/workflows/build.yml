@@ -45,18 +45,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Read package.json version
+        id: version
+        shell: bash
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Prepare yt-dlp binaries
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         shell: bash
         run: |
           mkdir -p bin
-          # Windows binary
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o bin/yt-dlp.exe
-          # Linux / macOS binary
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp
-          chmod +x bin/yt-dlp
-          # macOS binary (universal)
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos -o bin/yt-dlp_macos
-          chmod +x bin/yt-dlp_macos
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o bin/yt-dlp.exe
+          elif [ "${{ matrix.platform }}" = "mac" ]; then
+            curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos -o bin/yt-dlp_macos
+            chmod +x bin/yt-dlp_macos
+          else
+            curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp
+            chmod +x bin/yt-dlp
+          fi
 
       - name: Build Electron Main & Renderer
         run: |
@@ -97,17 +104,13 @@ jobs:
             dist/latest*.yml
           if-no-files-found: ignore
 
-      - name: Read package.json version
-        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-        shell: bash
-
       # ── Release uploads (only on tag pushes) ──────────────────────────────
 
       - name: Upload release assets (Linux)
-        if: matrix.platform == 'linux' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: ${{ github.ref_name }}
           artifacts: "dist/*.AppImage,dist/*.deb,dist/latest-linux.yml"
           allowUpdates: true
           replacesArtifacts: true
@@ -120,11 +123,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets (Windows)
-        if: matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+        if: matrix.platform == 'windows' && startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
-          artifacts: "dist/*.exe,dist/*.zip"
+          tag: ${{ github.ref_name }}
+          artifacts: "dist/*.exe,dist/*.zip,dist/latest.yml"
           allowUpdates: true
           replacesArtifacts: true
           updateOnlyUnreleased: false
@@ -136,10 +139,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release assets (macOS)
-        if: matrix.platform == 'mac' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+        if: matrix.platform == 'mac' && startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: ${{ github.ref_name }}
           artifacts: "dist/*.dmg,dist/*-mac.zip,dist/latest-mac.yml"
           allowUpdates: true
           replacesArtifacts: true
@@ -179,14 +182,18 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
+      - name: Read package.json version
+        id: version
+        shell: bash
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Build Android Universal APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
           mkdir -p ../dist
-          cp app/build/outputs/apk/debug/app-debug.apk ../dist/Melodix-1.1.1-beta.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ../dist/Melodix-1.1.1-universal.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../dist/Melodix-${{ steps.version.outputs.APP_VERSION }}-universal.apk
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -194,15 +201,11 @@ jobs:
           name: Melodix-Android
           path: dist/Melodix-*.apk
 
-      - name: Read package.json version
-        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-        shell: bash
-
       - name: Upload release assets (Android)
-        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: ${{ github.ref_name }}
           artifacts: "dist/Melodix-*.apk"
           allowUpdates: true
           replacesArtifacts: true
@@ -236,6 +239,11 @@ jobs:
       - name: Sync Capacitor iOS
         run: npx cap sync ios
 
+      - name: Read package.json version
+        id: version
+        shell: bash
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Build iOS App & Package IPA
         run: |
           mkdir -p dist ios/build
@@ -260,7 +268,7 @@ jobs:
           mkdir -p ios/build/Payload
           cp -R "$APP_PATH" ios/build/Payload/
           cd ios/build
-          zip -r -9 ../../dist/Melodix-1.1.1.ipa Payload
+          zip -r -9 ../../dist/Melodix-${{ steps.version.outputs.APP_VERSION }}.ipa Payload
           cd ../..
 
       - name: Upload build artifact
@@ -269,15 +277,11 @@ jobs:
           name: Melodix-iOS
           path: dist/Melodix-*.ipa
 
-      - name: Read package.json version
-        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-        shell: bash
-
       - name: Upload release assets (iOS)
-        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          tag: 'v1.1.1'
+          tag: ${{ github.ref_name }}
           artifacts: "dist/Melodix-*.ipa"
           allowUpdates: true
           replacesArtifacts: true

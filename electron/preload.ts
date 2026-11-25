@@ -29,9 +29,9 @@ contextBridge.exposeInMainWorld('melodix', {
   getUsername: async () => {
     try {
       const name = await ipcRenderer.invoke('get-username')
-      return name || 'rorka'
+      return name || ''
     } catch {
-      return 'rorka'
+      return ''
     }
   },
 

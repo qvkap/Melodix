@@ -107,6 +107,7 @@ export interface YtdlpInfo {
 }
 
 declare global {
+  const __APP_VERSION__: string
   interface Window {
     melodix: {
       minimize: () => void

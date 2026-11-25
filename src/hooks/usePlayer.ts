@@ -172,6 +172,8 @@ const DEFAULT_STATE: PlayerState = {
 
 export function usePlayer() {
   const { settings, addToRecentlyPlayed } = useSettings()
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
   const [state, setState] = useState<PlayerState>(DEFAULT_STATE)
   const [lyrics, setLyrics] = useState<LyricsState>({
     lines: [], plain: '', activeLine: -1, loading: false,
@@ -287,9 +289,9 @@ export function usePlayer() {
         if (lyrRes?.success) {
           const rawLines = lyrRes.syncedLyrics ? parseLrc(lyrRes.syncedLyrics) : []
           let lines = prepareLyricsWithInstrumentals(rawLines)
-          const targetLang = settings.language || 'ru'
+          const targetLang = settingsRef.current.language || 'ru'
           let plainTranslation: string | undefined
-          if (settings.lyricsShowTranslation !== false) {
+          if (settingsRef.current.lyricsShowTranslation !== false) {
             if (lines.length > 0) {
               lines = await translateLyricsLines(lines, targetLang)
             } else if (lyrRes.plainLyrics) {
@@ -327,12 +329,16 @@ export function usePlayer() {
     }
   }, [])
 
-  // Lightweight RAF loop for active lyric line, preloading, and 5s audio crossfading
+  const lastTickRef = useRef(0)
+
+  // Throttled RAF loop (~10Hz) for active lyric line, preloading, and crossfading
   const tick = useCallback(() => {
     const h = howlRef.current
     if (!h) return
 
-    if (h.playing()) {
+    const now = performance.now()
+    if (now - lastTickRef.current >= 95 && h.playing()) {
+      lastTickRef.current = now
       let t = h.seek()
       if (typeof t === 'number' && isFinite(t)) {
         // If recent seek in progress, respect target until audio actually catches up
@@ -409,9 +415,10 @@ export function usePlayer() {
     settings.lastfmEnabled, settings.lastfmSessionKey, settings.lastfmApiKey, settings.lastfmSecret
   ])
 
-  // Mobile background interval timer fallback for reliable lyrics syncing
+  // Background interval fallback for lyrics syncing when tab/webview is hidden (RAF paused)
   useEffect(() => {
     const timer = setInterval(() => {
+      if (!document.hidden) return
       const h = howlRef.current
       if (h && h.playing()) {
         const t = h.seek()
@@ -1053,7 +1060,10 @@ export function usePlayer() {
         if (cmd === 'seek' && typeof val === 'number') seek(val)
         if (cmd === 'seek-relative' && typeof val === 'number') {
           if (howlRef.current) {
-            seek(Math.max(0, (howlRef.current.seek() as number) + val))
+            const h = howlRef.current
+            const d = h.duration() || 1
+            const cur = h.seek() as number
+            seek(Math.max(0, Math.min(1, (cur + val) / d)))
           }
         }
       })

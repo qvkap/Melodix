@@ -109,8 +109,8 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 
       {/* Time display */}
       <Box display="flex" justifyContent="space-between" sx={{ mb: 0.8, px: 0.5 }}>
-        <TimeLabel howlRef={howlRef} side="current" />
-        <TimeLabel howlRef={howlRef} side="duration" />
+        <TimeLabel howlRef={howlRef} isPlaying={isPlaying} side="current" />
+        <TimeLabel howlRef={howlRef} isPlaying={isPlaying} side="duration" />
       </Box>
 
       {/* Bar Content: Track info | Controls | Volume & Fullscreen */}
@@ -351,36 +351,36 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
   )
 }
 
-const TimeLabel: React.FC<{ howlRef: React.RefObject<Howl | null>; side: 'current' | 'duration' }> = ({
-  howlRef, side,
+const TimeLabel: React.FC<{ howlRef: React.RefObject<Howl | null>; isPlaying: boolean; side: 'current' | 'duration' }> = ({
+  howlRef, isPlaying, side,
 }) => {
   const spanRef = useRef<HTMLSpanElement>(null)
+  const lastTextRef = useRef('')
 
   React.useEffect(() => {
-    let raf: number
-    let lastText = ''
-    const tick = () => {
+    const update = () => {
       const h = howlRef.current
-      if (h && spanRef.current && h.playing()) {
+      if (h && spanRef.current) {
         const t = h.seek()
         const d = h.duration() || 0
         if (typeof t === 'number' && isFinite(t)) {
           const newText = side === 'current' ? formatTime(t) : formatTime(d)
-          if (newText !== lastText) {
-            lastText = newText
+          if (newText !== lastTextRef.current) {
+            lastTextRef.current = newText
             spanRef.current.textContent = newText
           }
         }
-      } else if (!h && spanRef.current && lastText !== '0:00') {
-        // Track unloaded — reset time display immediately
-        lastText = '0:00'
+      } else if (!h && spanRef.current && lastTextRef.current !== '0:00') {
+        lastTextRef.current = '0:00'
         spanRef.current.textContent = '0:00'
       }
-      raf = requestAnimationFrame(tick)
     }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [side, howlRef])
+
+    update()
+    if (!isPlaying) return
+    const timer = setInterval(update, 250)
+    return () => clearInterval(timer)
+  }, [side, howlRef, isPlaying])
 
   return (
     <Typography

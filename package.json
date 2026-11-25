@@ -1,6 +1,6 @@
 {
   "name": "melodix",
-  "version": "1.1.8",
+  "version": "1.2.0",
   "description": "Melodix — Modern Music Player with Synchronized Lyrics",
   "author": {
     "name": "qvkap",
@@ -24,8 +24,6 @@
     "@fontsource/inter": "^5.3.0",
     "@mui/icons-material": "^5.15.15",
     "@mui/material": "^5.15.15",
-    "@react-three/drei": "^9.112.0",
-    "@react-three/fiber": "^8.17.6",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
     "hls.js": "^1.7.2",
@@ -35,7 +33,6 @@
     "music-metadata": "^11.15.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.186.1",
     "youtubei.js": "^18.0.0"
   },
   "devDependencies": {
@@ -87,7 +84,6 @@
     ],
     "win": {
       "target": [
-        "nsis",
         "nsis",
         "portable",
         "zip"

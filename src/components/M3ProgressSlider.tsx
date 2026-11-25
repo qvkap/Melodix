@@ -27,9 +27,10 @@ export const M3ProgressSlider: React.FC<M3ProgressSliderProps> = ({
   const isHovering = useRef(false)
   const rafRef = useRef<number>(0)
 
-  // Direct-DOM RAF loop — bypasses React state for smooth updates
+  // Direct-DOM RAF loop — bypasses React state for smooth updates, throttled when paused
   useEffect(() => {
     let lastPct = -1
+    let lastIdleCheck = 0
     const tick = () => {
       if (!isDragging.current) {
         const h = howlRef.current
@@ -45,13 +46,16 @@ export const M3ProgressSlider: React.FC<M3ProgressSliderProps> = ({
               if (timeLabelRef.current) timeLabelRef.current.textContent = formatTime(t)
             }
           }
-        } else if (!howlRef.current) {
-          // No howl loaded (track switching) — reset slider to 0 instantly
-          if (lastPct !== 0) {
-            lastPct = 0
-            if (fillRef.current) fillRef.current.style.width = '0%'
-            if (thumbRef.current) thumbRef.current.style.left = '0%'
-            if (timeLabelRef.current) timeLabelRef.current.textContent = '0:00'
+        } else {
+          const now = performance.now()
+          if (now - lastIdleCheck > 250) {
+            lastIdleCheck = now
+            if (!h && lastPct !== 0) {
+              lastPct = 0
+              if (fillRef.current) fillRef.current.style.width = '0%'
+              if (thumbRef.current) thumbRef.current.style.left = '0%'
+              if (timeLabelRef.current) timeLabelRef.current.textContent = '0:00'
+            }
           }
         }
       }

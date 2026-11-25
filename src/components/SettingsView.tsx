@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Box, Typography, Switch, Slider, Chip, TextField,
   Button, Paper, Accordion, AccordionSummary, AccordionDetails,
@@ -206,7 +206,7 @@ export const SettingsView: React.FC = () => {
     update({ exclusionWords: settings.exclusionWords.filter(w => w !== word) })
   }
 
-  const blurOptions: { value: BlurMaterial; title: string; desc: string }[] = [
+  const blurOptions: { value: BlurMaterial; title: string; desc: string }[] = useMemo(() => [
     {
       value: 'apple',
       title: (t as any).blurApple || 'Apple Music (Fluid GPU)',
@@ -242,7 +242,7 @@ export const SettingsView: React.FC = () => {
       title: t.blurNone,
       desc: 'Чистый глубокий темный фон'
     },
-  ]
+  ], [t])
 
   return (
     <Box sx={{ p: { xs: 2.5, md: 4 }, pb: 28, maxWidth: 780, mx: 'auto' }}>
@@ -896,10 +896,12 @@ export const SettingsView: React.FC = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
             <Box>
               <Typography variant="subtitle2" sx={{ color: '#ffffff', fontWeight: 700 }}>
-                Melodix 1.0 Beta
+                Melodix v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.8'}
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-                {updateStatus?.message || 'Автоматическая проверка обновлений при запуске'}
+                {updateStatus?.status === 'downloading'
+                  ? (updateStatus.version ? `Загрузка версии v${updateStatus.version}...` : 'Загрузка новой версии...')
+                  : (updateStatus?.message || 'Автоматическая проверка обновлений при запуске')}
               </Typography>
             </Box>
 
@@ -922,9 +924,16 @@ export const SettingsView: React.FC = () => {
               ) : (
                 <Button
                   variant="outlined"
-                  startIcon={<Refresh sx={{ animation: checkingUpdate ? 'spin 1s linear infinite' : 'none', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} />}
+                  startIcon={
+                    <Refresh
+                      sx={{
+                        animation: checkingUpdate || updateStatus?.status === 'downloading' ? 'spin 1s linear infinite' : 'none',
+                        '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } }
+                      }}
+                    />
+                  }
                   onClick={handleCheckUpdate}
-                  disabled={checkingUpdate}
+                  disabled={checkingUpdate || updateStatus?.status === 'downloading' || updateStatus?.status === 'available'}
                   sx={{
                     borderColor: 'rgba(255,255,255,0.15)',
                     color: '#ffffff',
@@ -934,17 +943,21 @@ export const SettingsView: React.FC = () => {
                     '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(208, 188, 255, 0.08)' }
                   }}
                 >
-                  {checkingUpdate ? 'Проверка...' : 'Проверить обновления'}
+                  {checkingUpdate
+                    ? 'Проверка...'
+                    : updateStatus?.status === 'downloading' || updateStatus?.status === 'available'
+                      ? 'Загрузка...'
+                      : 'Проверить обновления'}
                 </Button>
               )}
             </Box>
           </Box>
 
           {updateStatus?.percent !== undefined && updateStatus.status === 'downloading' && (
-            <Box sx={{ width: '100%', mt: 1 }}>
+            <Box sx={{ width: '100%', mt: 0.5 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                 <Typography variant="caption" sx={{ color: 'primary.light' }}>
-                  Загрузка новой версии...
+                  Скачивание обновления
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'primary.light', fontWeight: 700 }}>
                   {updateStatus.percent}%

@@ -274,7 +274,7 @@ async function fetchLatestYtdlpVersion(): Promise<string | null> {
     const res = await fetch('https://github.com/yt-dlp/yt-dlp/releases/latest', {
       method: 'HEAD',
       redirect: 'manual',
-      headers: { 'User-Agent': 'MelodixApp/1.0.0' }
+      headers: { 'User-Agent': `MelodixApp/${app.getVersion()}` }
     })
     const loc = res.headers.get('location')
     if (loc) {
@@ -288,7 +288,7 @@ async function fetchLatestYtdlpVersion(): Promise<string | null> {
   // Method 2: GitHub API
   try {
     const res = await fetch('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest', {
-      headers: { 'User-Agent': 'MelodixApp/1.0.0' }
+      headers: { 'User-Agent': `MelodixApp/${app.getVersion()}` }
     })
     if (res.ok) {
       const data: any = await res.json()
@@ -311,7 +311,7 @@ async function downloadAndInstallYtdlp(latestVer: string): Promise<boolean> {
   console.log(`[yt-dlp Updater] Downloading ${binaryName} from ${downloadUrl}...`)
 
   const res = await fetch(downloadUrl, {
-    headers: { 'User-Agent': 'MelodixApp/1.0.0' },
+    headers: { 'User-Agent': `MelodixApp/${app.getVersion()}` },
     redirect: 'follow',
   })
 
@@ -483,10 +483,12 @@ function createWindow() {
     }
   }
 
-  // Forward all renderer console messages to stdout
-  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    console.log(`[RENDERER CONSOLE] level=${level}: ${message} (${sourceId}:${line})`)
-  })
+  // Forward renderer console messages in dev mode only
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      console.log(`[RENDERER CONSOLE] level=${level}: ${message} (${sourceId}:${line})`)
+    })
+  }
 
   mainWindow.webContents.on('did-fail-load', (_event, code, desc, url) => {
     console.error(`[FAIL LOAD] ${code}: ${desc} at ${url}`)
@@ -677,10 +679,18 @@ if (process.platform === 'win32') {
   }
 }
 
-// Performance In-Memory Caches
+// Performance In-Memory Caches (bounded to prevent unbounded RAM growth)
 const searchCache = new Map<string, { data: any; ts: number }>()
 const streamCache = new Map<string, { url: string; ts: number }>()
 const lyricsCache = new Map<string, { data: any; ts: number }>()
+
+function setBoundedCache<T>(cache: Map<string, T>, key: string, value: T, maxSize: number) {
+  if (cache.size >= maxSize) {
+    const oldestKey = cache.keys().next().value
+    if (oldestKey !== undefined) cache.delete(oldestKey)
+  }
+  cache.set(key, value)
+}
 
 const SEARCH_TTL = 10 * 60 * 1000      // 10 minutes
 const STREAM_TTL = 4 * 60 * 60 * 1000  // 4 hours (in-memory)
@@ -1171,7 +1181,7 @@ ipcMain.handle('get-stream-url', async (_event, trackIdOrUrl: string, fallbackQu
 })
 
 // Intelligent Lyrics Fetching from lrclib.net with Multi-Query Fallback
-const LRCLIB_UA = 'MelodixApp/1.0.0 (https://github.com/rorka/melodix)'
+const LRCLIB_UA = `MelodixApp/${app.getVersion()} (https://github.com/qvkap/Melodix)`
 
 function cleanQuery(str: string): string {
   return str

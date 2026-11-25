@@ -35,13 +35,15 @@ export const ActiveWordSyncedLine: React.FC<ActiveWordSyncedLineProps> = ({
     if (words.length === 0) return
 
     let isRunning = true
+    let lastTime = -1
 
     const updateWords = () => {
       if (!isRunning) return
       const h = howlRef.current
-      if (h) {
+      if (h && wordsRef.current[0]?.offsetParent !== null) {
         const rawT = h.seek()
-        if (typeof rawT === 'number' && isFinite(rawT)) {
+        if (typeof rawT === 'number' && isFinite(rawT) && Math.abs(rawT - lastTime) > 0.008) {
+          lastTime = rawT
           // Compensate for calibrated latency / lead-in
           const t = rawT + offsetRef.current / 1000
 

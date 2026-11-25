@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Melodix — Cross-Platform Music Player</title>
+  <meta name="description" content="Open-source cross-platform music player with synced lyrics, adaptive backgrounds, local playback, and playlist import." />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <style>
+    :root {
+      --bg: #0a0d14;
+      --surface: rgba(255, 255, 255, 0.04);
+      --surface-hover: rgba(255, 255, 255, 0.08);
+      --border: rgba(255, 255, 255, 0.09);
+      --text: #f3f4f8;
+      --muted: rgba(243, 244, 248, 0.64);
+      --accent: #d0bcff;
+      --accent-dark: #141218;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background:
+        radial-gradient(900px 500px at 15% -10%, rgba(208, 188, 255, 0.14), transparent 60%),
+        radial-gradient(800px 500px at 85% 10%, rgba(100, 181, 246, 0.10), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .lang-btn, .ghost-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .lang-btn:hover, .ghost-btn:hover {
+      background: var(--surface-hover);
+      border-color: rgba(208, 188, 255, 0.4);
+    }
+
+    .hero {
+      padding: 72px 0 48px;
+      text-align: center;
+    }
+
+    .version-pill {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(208, 188, 255, 0.14);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      font-size: clamp(2.1rem, 5vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.12;
+      margin-bottom: 18px;
+    }
+
+    .hero p {
+      max-width: 660px;
+      margin: 0 auto 30px;
+      color: var(--muted);
+      font-size: 1.06rem;
+    }
+
+    .cta-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 48px;
+    }
+
+    .primary-btn {
+      background: var(--accent);
+      color: var(--accent-dark);
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .primary-btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.94;
+    }
+
+    .secondary-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.15s ease;
+    }
+
+    .secondary-btn:hover { background: var(--surface-hover); }
+
+    .hero-shot {
+      width: 100%;
+      max-width: 960px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+      display: block;
+      margin: 0 auto;
+    }
+
+    section { padding: 56px 0; }
+
+    h2 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px;
+    }
+
+    .card h3 {
+      font-size: 1.02rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #ffffff;
+    }
+
+    .card p {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .downloads {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+    }
+
+    .dl-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .dl-card:hover {
+      background: var(--surface-hover);
+      border-color: rgba(208, 188, 255, 0.45);
+    }
+
+    .dl-card strong { display: block; font-size: 1rem; margin-bottom: 4px; }
+    .dl-card span { font-size: 0.82rem; color: var(--muted); }
+
+    .mobile-shots {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .mobile-shots img {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 0 40px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a class="brand" href="#">
+        <img src="assets/logo.png" alt="Melodix" />
+        <span>Melodix</span>
+      </a>
+      <div class="nav-actions">
+        <a class="ghost-btn" href="https://github.com/qvkap/Melodix" target="_blank" rel="noopener">GitHub</a>
+        <button class="lang-btn" id="langToggle" type="button">RU</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <span class="version-pill">v1.2.0 — Open Source (GPL-3.0)</span>
+        <h1 data-i18n="heroTitle">Music player with synced lyrics and adaptive visuals</h1>
+        <p data-i18n="heroDesc">
+          Cross-platform player for Linux, Windows, macOS, Android, and iOS. Supports word-by-word lyrics, line translation, local audio files, playlist import, and dual-source streaming.
+        </p>
+        <div class="cta-row">
+          <a class="primary-btn" href="https://github.com/qvkap/Melodix/releases/latest" target="_blank" rel="noopener" data-i18n="downloadLatest">Download Latest Release</a>
+          <a class="secondary-btn" href="#platforms" data-i18n="allPlatforms">All Platforms</a>
+        </div>
+        <img class="hero-shot" src="assets/desktop.jpg" alt="Melodix Desktop" />
+      </section>
+
+      <section id="features">
+        <h2 data-i18n="featuresTitle">Features</h2>
+        <div class="grid">
+          <div class="card">
+            <h3 data-i18n="f1Title">Synced Lyrics &amp; Translation</h3>
+            <p data-i18n="f1Desc">LRC line-by-line and word-by-word lyrics with timing calibration, click-to-seek, and automatic RU/EN translation.</p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="f2Title">Adaptive Backgrounds</h3>
+            <p data-i18n="f2Desc">Color extraction from album covers with Apple Music, Vibrant, Acrylic, Glow, and Liquid Glass material modes.</p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="f3Title">Dual Audio Sources</h3>
+            <p data-i18n="f3Desc">YouTube and YouTube Music search with SoundCloud fallback, built-in proxy support, and equal-power crossfade.</p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="f4Title">Playlist Import &amp; Local Files</h3>
+            <p data-i18n="f4Desc">Import playlists from Yandex Music, Apple Music, and Spotify, or scan local folders with metadata parsing.</p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="f5Title">Desktop Integration</h3>
+            <p data-i18n="f5Desc">Linux MPRIS media controls, Wayland support, system accent color sync on Windows/macOS, and Last.fm scrobbling.</p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="f6Title">Mobile Ready</h3>
+            <p data-i18n="f6Desc">Capacitor builds for Android (Material You) and iOS (Liquid Glass) with touch seek and two-mode player view.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="platforms">
+        <h2 data-i18n="downloadsTitle">Downloads</h2>
+        <div class="downloads">
+          <a class="dl-card" href="https://github.com/qvkap/Melodix/releases/latest" target="_blank" rel="noopener">
+            <strong>Linux</strong>
+            <span>AppImage, deb</span>
+          </a>
+          <a class="dl-card" href="https://github.com/qvkap/Melodix/releases/latest" target="_blank" rel="noopener">
+            <strong>Windows</strong>
+            <span>NSIS Installer, Portable, ZIP</span>
+          </a>
+          <a class="dl-card" href="https://github.com/qvkap/Melodix/releases/latest" target="_blank" rel="noopener">
+            <strong>macOS</strong>
+            <span>DMG, ZIP (unsigned)</span>
+          </a>
+          <a class="dl-card" href="https://github.com/qvkap/Melodix/releases/latest" target="_blank" rel="noopener">
+            <strong>Android</strong>
+            <span>Universal APK</span>
+          </a>
+          <a class="dl-card" href="https://github.com/qvkap/Melodix/releases/latest" target="_blank" rel="noopener">
+            <strong>iOS</strong>
+            <span>Unsigned IPA</span>
+          </a>
+        </div>
+
+        <div class="mobile-shots">
+          <img src="assets/ios.jpg" alt="Melodix iOS" />
+          <img src="assets/android.jpg" alt="Melodix Android" />
+          <img src="assets/mobile-player.jpg" alt="Melodix Mobile Player" />
+          <img src="assets/mobile-lyrics.jpg" alt="Melodix Mobile Lyrics" />
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Melodix — GPL-3.0-or-later</span>
+      <a href="https://github.com/qvkap/Melodix/releases" target="_blank" rel="noopener" data-i18n="releasesLink">GitHub Releases</a>
+    </footer>
+  </div>
+
+  <script>
+    const translations = {
+      en: {
+        heroTitle: 'Music player with synced lyrics and adaptive visuals',
+        heroDesc: 'Cross-platform player for Linux, Windows, macOS, Android, and iOS. Supports word-by-word lyrics, line translation, local audio files, playlist import, and dual-source streaming.',
+        downloadLatest: 'Download Latest Release',
+        allPlatforms: 'All Platforms',
+        featuresTitle: 'Features',
+        f1Title: 'Synced Lyrics & Translation',
+        f1Desc: 'LRC line-by-line and word-by-word lyrics with timing calibration, click-to-seek, and automatic RU/EN translation.',
+        f2Title: 'Adaptive Backgrounds',
+        f2Desc: 'Color extraction from album covers with Apple Music, Vibrant, Acrylic, Glow, and Liquid Glass material modes.',
+        f3Title: 'Dual Audio Sources',
+        f3Desc: 'YouTube and YouTube Music search with SoundCloud fallback, built-in proxy support, and equal-power crossfade.',
+        f4Title: 'Playlist Import & Local Files',
+        f4Desc: 'Import playlists from Yandex Music, Apple Music, and Spotify, or scan local folders with metadata parsing.',
+        f5Title: 'Desktop Integration',
+        f5Desc: 'Linux MPRIS media controls, Wayland support, system accent color sync on Windows/macOS, and Last.fm scrobbling.',
+        f6Title: 'Mobile Ready',
+        f6Desc: 'Capacitor builds for Android (Material You) and iOS (Liquid Glass) with touch seek and two-mode player view.',
+        downloadsTitle: 'Downloads',
+        releasesLink: 'GitHub Releases'
+      },
+      ru: {
+        heroTitle: 'Музыкальный плеер с синхронным текстом и адаптивным фоном',
+        heroDesc: 'Кроссплатформенный плеер для Linux, Windows, macOS, Android и iOS. Пословные тексты песен, перевод строк, локальная медиатека, импорт плейлистов и резервные источники аудио.',
+        downloadLatest: 'Скачать последний релиз',
+        allPlatforms: 'Все платформы',
+        featuresTitle: 'Возможности',
+        f1Title: 'Синхронный текст и перевод',
+        f1Desc: 'Построчный и пословный LRC-текст с калибровкой задержки, перемоткой по клику и автопереводом (RU/EN).',
+        f2Title: 'Адаптивный фон',
+        f2Desc: 'Извлечение палитры из обложки трека: режимы Apple Music, Vibrant, Acrylic, Glow и Liquid Glass.',
+        f3Title: 'Два источника аудио',
+        f3Desc: 'Поиск по YouTube и YouTube Music с переключением на SoundCloud, встроенный прокси и плавный кроссфейд.',
+        f4Title: 'Импорт плейлистов и локальные файлы',
+        f4Desc: 'Импорт плейлистов из Яндекс Музыки, Apple Music и Spotify, а также сканирование локальных папок.',
+        f5Title: 'Интеграция с системой',
+        f5Desc: 'Поддержка MPRIS и Wayland на Linux, системный акцентный цвет на Windows/macOS и скробблинг в Last.fm.',
+        f6Title: 'Мобильные версии',
+        f6Desc: 'Сборки для Android (Material You) и iOS (Liquid Glass) с сенсорной перемоткой и двумя режимами экрана плеера.',
+        downloadsTitle: 'Скачать',
+        releasesLink: 'Релизы на GitHub'
+      }
+    };
+
+    let lang = (navigator.language || '').startsWith('ru') ? 'ru' : 'en';
+    const toggleBtn = document.getElementById('langToggle');
+
+    function applyLang() {
+      const dict = translations[lang];
+      document.documentElement.lang = lang;
+      document.querySelectorAll('[data-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) el.textContent = dict[key];
+      });
+      toggleBtn.textContent = lang === 'en' ? 'RU' : 'EN';
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      lang = lang === 'en' ? 'ru' : 'en';
+      applyLang();
+    });
+
+    applyLang();
+  </script>
+</body>
+</html>

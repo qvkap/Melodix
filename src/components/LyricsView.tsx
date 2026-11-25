@@ -6,7 +6,6 @@ import {
   KeyboardArrowDown, Favorite, FavoriteBorder,
   Translate
 } from '@mui/icons-material'
-import { Howl } from 'howler'
 import { LrcLine, PlayerState } from '../types'
 import { useSettings } from '../contexts/SettingsContext'
 import { LiquidGlass } from 'liquid-glass-web-react'
@@ -25,7 +24,7 @@ interface LyricsViewProps {
   title: string
   artist: string
   playerState: PlayerState
-  howlRef: React.RefObject<Howl | null>
+  howlRef: React.RefObject<any>
   onTogglePlay: () => void
   onNext: () => void
   onPrev: () => void
@@ -118,13 +117,14 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   const isFav = playerState.currentTrack ? isFavorite(playerState.currentTrack.id) : false
   const isExp = playerState.currentTrack ? (playerState.currentTrack.isExplicit || detectExplicit(playerState.currentTrack.title)) : false
 
-  // Direct 60fps RAF loop for the progress bar
+  // Direct 60fps RAF loop for the progress bar (only active when visible & playing)
   useEffect(() => {
+    if (isDragging || !playerState.isPlaying) return
     let rafId: number
     let lastPct = -1
     const updateProgress = () => {
       const h = howlRef.current
-      if (!isDragging && h && h.playing() && progressFillRef.current) {
+      if (h && h.playing() && progressFillRef.current && progressTrackRef.current?.offsetParent !== null) {
         const t = h.seek()
         const d = h.duration() || 1
         if (typeof t === 'number' && isFinite(t)) {
@@ -139,7 +139,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
     }
     rafId = requestAnimationFrame(updateProgress)
     return () => cancelAnimationFrame(rafId)
-  }, [isDragging, howlRef])
+  }, [isDragging, playerState.isPlaying, howlRef])
 
   // Center scroll active lyric line smoothly
   useEffect(() => {
